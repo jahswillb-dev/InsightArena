@@ -35,6 +35,30 @@ import {
 } from './dto/search-events-response.dto';
 import { UserScoreResponseDto } from './dto/user-score-response.dto';
 
+// Type definitions - exported for use in controllers
+export interface ParticipantWithStats {
+  address: string;
+  joinedAt: number;
+  totalPredictions: number;
+  correctPredictions: number;
+  accuracyPct: number;
+  rank: number;
+}
+
+export interface PaginatedParticipants {
+  data: ParticipantWithStats[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface EnrichedEvent extends ContractEvent {
+  matchCount: number;
+  matchPreview: MatchPreviewDto[];
+  winnerCount: number;
+  creatorVerified: boolean;
+}
 
 @Injectable()
 export class CreatorEventsService {
@@ -133,6 +157,7 @@ export class CreatorEventsService {
         matchId: m.matchId,
         homeTeam: m.homeTeam,
         awayTeam: m.awayTeam,
+        startTime: m.startTime,
       })),
       winnerCount: winners.length,
       creatorVerified,
@@ -371,6 +396,17 @@ export class CreatorEventsService {
   ): ParticipantWithStats[] {
     const dir = sortOrder === ParticipantSortOrder.Asc ? 1 : -1;
 
+    return [...participants].sort((a, b) => {
+      switch (sortBy) {
+        case ParticipantSortBy.Score:
+          return (a.accuracyPct - b.accuracyPct) * dir;
+        case ParticipantSortBy.Address:
+          return a.address.localeCompare(b.address) * dir;
+        case ParticipantSortBy.JoinedAt:
+          return (a.joinedAt - b.joinedAt) * dir;
+        default:
+          return 0;
+      }
     });
   }
 

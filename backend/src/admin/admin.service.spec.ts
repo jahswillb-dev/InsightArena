@@ -114,6 +114,18 @@ describe('AdminService (Verified Addresses)', () => {
           useValue: { findOne: jest.fn(), createQueryBuilder: jest.fn() },
         },
         {
+          provide: getRepositoryToken(
+            require('../matches/entities/creator-event.entity').CreatorEvent,
+          ),
+          useValue: { findOne: jest.fn(), createQueryBuilder: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(
+            require('../indexer/entities/fee-history.entity').FeeHistory,
+          ),
+          useValue: { findOne: jest.fn(), find: jest.fn() },
+        },
+        {
           provide: require('../analytics/analytics.service').AnalyticsService,
           useValue: { logActivity: jest.fn() },
         },

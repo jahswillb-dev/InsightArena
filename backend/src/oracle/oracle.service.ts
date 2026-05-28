@@ -39,9 +39,10 @@ export class OracleService {
       .getManyAndCount();
 
     const eventIds = [...new Set(matches.map((m) => m.event_id))];
-    const events = eventIds.length > 0
-      ? await this.eventRepository.find({ where: { id: In(eventIds) } })
-      : [];
+    const events =
+      eventIds.length > 0
+        ? await this.eventRepository.find({ where: { id: In(eventIds) } })
+        : [];
     const eventMap = new Map(events.map((e) => [e.id, e]));
 
     const data: PendingMatchResponse[] = matches.map((match) => {

@@ -171,6 +171,4 @@ export class PublicCreatorEventsController {
 @ApiBearerAuth()
 export class AdminCreatorEventsController {
   constructor(private readonly creatorEventsService: CreatorEventsService) {}
-
-  }
 }

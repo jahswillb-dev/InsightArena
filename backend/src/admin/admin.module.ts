@@ -29,7 +29,9 @@ import { AdminService } from './admin.service';
       CompetitionParticipant,
       ActivityLog,
       Flag,
-
+      CreatorEvent,
+      VerifiedAddress,
+      FeeHistory,
     ]),
     AnalyticsModule,
     FlagsModule,

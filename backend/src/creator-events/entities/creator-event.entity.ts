@@ -52,6 +52,18 @@ export class CreatorEvent {
   @ApiProperty()
   winners_verified: boolean;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  @ApiPropertyOptional()
+  creation_fee_paid?: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  @ApiPropertyOptional()
+  on_chain_created_at?: Date;
+
+  @Column({ type: 'int', default: 0 })
+  @ApiProperty()
+  max_participants: number;
+
   @CreateDateColumn()
   @ApiProperty()
   created_at: Date;

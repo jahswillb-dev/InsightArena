@@ -33,7 +33,6 @@ import { SorobanModule } from './soroban/soroban.module';
 import { UsersModule } from './users/users.module';
 import { DisputesModule } from './disputes/disputes.module';
 import { ContractModule } from './contract/contract.module';
-import { CreatorEventsModule } from './creator-events/creator-events.module';
 
 @Module({
   imports: [
@@ -97,7 +96,6 @@ import { CreatorEventsModule } from './creator-events/creator-events.module';
     MatchesModule,
     IndexerModule,
     ContractModule,
-    CreatorEventsModule,
   ],
 
   controllers: [AppController],

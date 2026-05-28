@@ -23,7 +23,9 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { Prediction } from '../predictions/entities/prediction.entity';
 import { SorobanService } from '../soroban/soroban.service';
 import { User } from '../users/entities/user.entity';
-n
+import { CreatorEvent } from '../matches/entities/creator-event.entity';
+import { VerifiedAddress } from './entities/verified-address.entity';
+import { FeeHistory } from '../indexer/entities/fee-history.entity';
 import { ActivityLogQueryDto } from './dto/activity-log-query.dto';
 import { DateRangeQueryDto } from './dto/date-range-query.dto';
 import { FeeStatsResponseDto } from './dto/fee-stats-response.dto';
@@ -59,6 +61,12 @@ export class AdminService {
     private readonly activityLogsRepository: Repository<ActivityLog>,
     @InjectRepository(Flag)
     private readonly flagsRepository: Repository<Flag>,
+    @InjectRepository(CreatorEvent)
+    private readonly creatorEventRepository: Repository<CreatorEvent>,
+    @InjectRepository(VerifiedAddress)
+    private readonly verifiedAddressesRepository: Repository<VerifiedAddress>,
+    @InjectRepository(FeeHistory)
+    private readonly feeHistoryRepository: Repository<FeeHistory>,
 
     private readonly analyticsService: AnalyticsService,
     private readonly notificationsService: NotificationsService,
