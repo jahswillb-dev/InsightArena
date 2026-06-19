@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Copy } from "lucide-react";
+import { ChevronDown, Copy, Bell } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
 
 export default function Header() {
@@ -217,6 +217,17 @@ export default function Header() {
                     isActive("/profile") ? "opacity-100" : "opacity-0"
                   }`}
                 />
+              </Link>
+              {/* Notification Bell */}
+              <Link
+                href="/notifications"
+                className="relative hidden md:inline-flex items-center text-gray-200 hover:text-white"
+              >
+                <Bell className="h-5 w-5" />
+                <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
+                </span>
               </Link>
 
               {!isAuthenticated ? (
