@@ -6,6 +6,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Keypair } from '@stellar/stellar-sdk';
 import request, { SuperTest, Test as SuperTestRequest } from 'supertest';
 import { User } from '../users/entities/user.entity';
+import { UserPreferences } from '../users/entities/user-preferences.entity';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -43,8 +44,20 @@ describe('Auth E2E — challenge → verify flow', () => {
     save: jest.Mock;
   };
 
+  let mockUserPreferencesRepository: {
+    findOneBy: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
+  };
+
   beforeAll(async () => {
     mockUsersRepository = {
+      findOneBy: jest.fn(),
+      create: jest.fn(),
+      save: jest.fn(),
+    };
+
+    mockUserPreferencesRepository = {
       findOneBy: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
@@ -87,6 +100,10 @@ describe('Auth E2E — challenge → verify flow', () => {
           provide: getRepositoryToken(User),
           useValue: mockUsersRepository,
         },
+        {
+          provide: getRepositoryToken(UserPreferences),
+          useValue: mockUserPreferencesRepository,
+        },
       ],
     })
       .overrideGuard(JwtAuthGuard)
@@ -125,6 +142,10 @@ describe('Auth E2E — challenge → verify flow', () => {
     mockUsersRepository.save.mockImplementation((user: User) =>
       Promise.resolve({ ...user, id: user.id || 'e2e-uuid' }),
     );
+
+    mockUserPreferencesRepository.findOneBy.mockResolvedValue(null);
+    mockUserPreferencesRepository.create.mockImplementation((dto: any) => dto);
+    mockUserPreferencesRepository.save.mockImplementation((dto: any) => Promise.resolve(dto));
 
     mockJwtService.signAsync.mockResolvedValue('mock-jwt-token');
   });
