@@ -219,3 +219,80 @@ fn test_get_dispute_fails_after_resolution() {
         Err(Ok(InsightArenaError::DisputeNotFound))
     ));
 }
+
+#[test]
+fn test_raise_dispute_on_unresolved_market_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, _oracle, xlm_token) = deploy(&env);
+    let creator = Address::generate(&env);
+    let disputer = Address::generate(&env);
+
+    // 1. Create a market, but do NOT resolve it
+    let id = client.create_market(&creator, &market_params(&env));
+
+    let bond = 15_000_000_i128;
+    StellarAssetClient::new(&env, &xlm_token).mint(&disputer, &bond);
+    TokenClient::new(&env, &xlm_token).approve(&disputer, &client.address, &bond, &9999);
+
+    // 2. Try to raise a dispute on the unresolved market
+    let result = client.try_raise_dispute(&disputer, &id, &bond);
+
+    // 3. Assert it returns the MarketNotResolved error
+    assert!(matches!(
+        result,
+        Err(Ok(InsightArenaError::MarketNotResolved))
+    ));
+}
+
+#[test]
+fn test_raise_dispute_on_closed_but_not_resolved_market_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, _oracle, xlm_token) = deploy(&env);
+    let creator = Address::generate(&env);
+    let disputer = Address::generate(&env);
+
+    let id = client.create_market(&creator, &market_params(&env));
+
+    // 1. Advance time past the market's end_time to simulate it closing chronologically
+    env.ledger().set_timestamp(env.ledger().timestamp() + 15);
+
+    let bond = 15_000_000_i128;
+    StellarAssetClient::new(&env, &xlm_token).mint(&disputer, &bond);
+    TokenClient::new(&env, &xlm_token).approve(&disputer, &client.address, &bond, &9999);
+
+    // 2. Attempt to dispute a closed market that still lacks resolution
+    let result = client.try_raise_dispute(&disputer, &id, &bond);
+
+    // 3. Assert it still rejects with MarketNotResolved
+    assert!(matches!(
+        result,
+        Err(Ok(InsightArenaError::MarketNotResolved))
+    ));
+}
+
+#[test]
+fn test_raise_dispute_on_resolved_market_success_within_window() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, oracle, xlm_token) = deploy(&env);
+    let creator = Address::generate(&env);
+    let disputer = Address::generate(&env);
+
+    let id = client.create_market(&creator, &market_params(&env));
+    
+    // 1. Properly resolve the market first
+    env.ledger().set_timestamp(env.ledger().timestamp() + 20);
+    client.resolve_market(&oracle, &id, &symbol_short!("yes"));
+
+    let bond = 15_000_000_i128;
+    StellarAssetClient::new(&env, &xlm_token).mint(&disputer, &bond);
+    TokenClient::new(&env, &xlm_token).approve(&disputer, &client.address, &bond, &9999);
+
+    // 2. Raise a dispute within the valid window
+    let result = client.try_raise_dispute(&disputer, &id, &bond);
+
+    // 3. Assert success
+    assert!(result.is_ok());
+}
