@@ -245,8 +245,7 @@ fn test_full_prediction_flow_with_scoring() {
     assert_eq!(alice_exact, 1);
     assert_eq!(alice_total, 1);
 
-    let (bob_points, bob_correct, bob_exact, bob_total) =
-        client.get_user_score(&bob, &event_id);
+    let (bob_points, bob_correct, bob_exact, bob_total) = client.get_user_score(&bob, &event_id);
     assert_eq!(bob_points, 0); // Wrong result (predicted 2-0, got 1-1)
     assert_eq!(bob_correct, 0);
     assert_eq!(bob_exact, 0);
@@ -259,7 +258,6 @@ fn test_full_prediction_flow_with_scoring() {
     assert_eq!(m.home_score, Some(1));
     assert_eq!(m.away_score, Some(1));
 }
-
 
 // ============================================================================
 // New tests for exact scoreline predictions (#966)
@@ -449,7 +447,6 @@ fn test_submit_prediction_stores_scoreline() {
     assert_eq!(prediction.points_earned, None); // Not yet graded
     assert_eq!(prediction.is_correct, None); // Not yet graded
 }
-
 
 // ============================================================================
 // Scoreline grading tests (#xxx — exact score predictions)

@@ -20,7 +20,7 @@ use soroban_sdk::{contract, contractimpl, Address, Env, String, Symbol, Vec};
 use admin::AdminError;
 use event::EventError;
 use r#match::MatchError;
-use storage_types::{Event, Match, Prediction, LeaderboardEntry};
+use storage_types::{Event, LeaderboardEntry, Match, Prediction};
 use verification::VerificationError;
 use views::{EventStatistics, PlatformStatistics};
 
@@ -469,7 +469,15 @@ impl CreatorEventManagerContract {
         match_time: u64,
         points_multiplier: u32,
     ) -> u64 {
-        match r#match::create_match(&env, caller, event_id, team_a, team_b, match_time, points_multiplier) {
+        match r#match::create_match(
+            &env,
+            caller,
+            event_id,
+            team_a,
+            team_b,
+            match_time,
+            points_multiplier,
+        ) {
             Ok(match_id) => match_id,
             Err(MatchError::Paused) => panic!("paused"),
             Err(MatchError::EventNotFound) => panic!("event_not_found"),
@@ -643,7 +651,13 @@ impl CreatorEventManagerContract {
     /// * `"match_not_found"` — no match exists with the given ID.
     /// * `"result_already_submitted"` — a result was already submitted.
     /// * `"match_not_started"` — current time is before the match start time.
-    pub fn submit_match_result(env: Env, caller: Address, match_id: u64, home_score: u32, away_score: u32) {
+    pub fn submit_match_result(
+        env: Env,
+        caller: Address,
+        match_id: u64,
+        home_score: u32,
+        away_score: u32,
+    ) {
         match oracle::submit_match_result(&env, caller, match_id, home_score, away_score) {
             Ok(()) => {}
             Err(oracle::OracleError::Paused) => panic!("contract_paused"),

@@ -209,8 +209,20 @@ fn test_leaderboard_tiebreak_by_exact_scores() {
 
     // Advance time and submit results
     env.ledger().set_timestamp(env.ledger().timestamp() + 200);
-    submit_match_result(&env, &client, &ai_agent, *match_ids.get(0).unwrap(), MatchResult::Draw);
-    submit_match_result(&env, &client, &ai_agent, *match_ids.get(1).unwrap(), MatchResult::TeamA);
+    submit_match_result(
+        &env,
+        &client,
+        &ai_agent,
+        *match_ids.get(0).unwrap(),
+        MatchResult::Draw,
+    );
+    submit_match_result(
+        &env,
+        &client,
+        &ai_agent,
+        *match_ids.get(1).unwrap(),
+        MatchResult::TeamA,
+    );
 
     let leaderboard = client.get_event_leaderboard(&event_id);
 
@@ -249,7 +261,13 @@ fn test_leaderboard_tiebreak_by_earliest_prediction() {
 
     // Advance time and submit result
     env.ledger().set_timestamp(env.ledger().timestamp() + 200);
-    submit_match_result(&env, &client, &ai_agent, *match_ids.get(0).unwrap(), MatchResult::TeamA);
+    submit_match_result(
+        &env,
+        &client,
+        &ai_agent,
+        *match_ids.get(0).unwrap(),
+        MatchResult::TeamA,
+    );
 
     let leaderboard = client.get_event_leaderboard(&event_id);
 
@@ -312,7 +330,13 @@ fn test_leaderboard_single_participant() {
     client.submit_prediction(&user1, match_ids.get(0).unwrap(), &1u32, &0u32);
 
     env.ledger().set_timestamp(env.ledger().timestamp() + 200);
-    submit_match_result(&env, &client, &ai_agent, *match_ids.get(0).unwrap(), MatchResult::TeamA);
+    submit_match_result(
+        &env,
+        &client,
+        &ai_agent,
+        *match_ids.get(0).unwrap(),
+        MatchResult::TeamA,
+    );
 
     let leaderboard = client.get_event_leaderboard(&event_id);
 
@@ -358,7 +382,13 @@ fn test_leaderboard_address_tiebreaker_smaller_address_ranks_first() {
 
     // Advance past match time and submit result so both earn the same points.
     env.ledger().set_timestamp(env.ledger().timestamp() + 300);
-    submit_match_result(&env, &client, &ai_agent, *match_ids.get(0).unwrap(), MatchResult::TeamA);
+    submit_match_result(
+        &env,
+        &client,
+        &ai_agent,
+        *match_ids.get(0).unwrap(),
+        MatchResult::TeamA,
+    );
 
     let leaderboard = client.get_event_leaderboard(&event_id);
 
@@ -394,7 +424,13 @@ fn test_leaderboard_address_tiebreaker_insertion_order_irrelevant() {
     client.submit_prediction(&smaller, &match_ids.get(0).unwrap(), &1u32, &0u32);
 
     env.ledger().set_timestamp(env.ledger().timestamp() + 300);
-    submit_match_result(&env, &client, &ai_agent, *match_ids.get(0).unwrap(), MatchResult::TeamA);
+    submit_match_result(
+        &env,
+        &client,
+        &ai_agent,
+        *match_ids.get(0).unwrap(),
+        MatchResult::TeamA,
+    );
 
     let leaderboard = client.get_event_leaderboard(&event_id);
 

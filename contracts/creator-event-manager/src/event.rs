@@ -4,8 +4,8 @@ use crate::admin;
 use crate::invite::{self, InviteError};
 use crate::storage::{self, TTL_LEDGERS};
 use crate::storage_types::{
-    DataKey, Event, MAX_DESCRIPTION_LEN, MAX_EVENT_DURATION_SECONDS, MAX_REWARD_RANKS, MAX_TITLE_LEN,
-    REWARD_PERCENT_TOTAL,
+    DataKey, Event, MAX_DESCRIPTION_LEN, MAX_EVENT_DURATION_SECONDS, MAX_REWARD_RANKS,
+    MAX_TITLE_LEN, REWARD_PERCENT_TOTAL,
 };
 
 // ---------------------------------------------------------------------------

@@ -556,12 +556,18 @@ fn test_is_event_finalized_states() {
 
     // State 1: Active (not finalized)
     assert!(!client.is_event_finalized(&event_id));
-    assert_eq!(client.is_event_finalized(&event_id), client.get_event(&event_id).is_finalized);
+    assert_eq!(
+        client.is_event_finalized(&event_id),
+        client.get_event(&event_id).is_finalized
+    );
 
     // State 2: Cancelled (not finalized)
     client.cancel_event(&creator, &event_id);
     assert!(!client.is_event_finalized(&event_id));
-    assert_eq!(client.is_event_finalized(&event_id), client.get_event(&event_id).is_finalized);
+    assert_eq!(
+        client.is_event_finalized(&event_id),
+        client.get_event(&event_id).is_finalized
+    );
 
     // State 3: Finalized
     let creator2 = Address::generate(&env);
@@ -587,7 +593,10 @@ fn test_is_event_finalized_states() {
     client.finalize_event(&creator2, &event_id2);
 
     assert!(client.is_event_finalized(&event_id2));
-    assert_eq!(client.is_event_finalized(&event_id2), client.get_event(&event_id2).is_finalized);
+    assert_eq!(
+        client.is_event_finalized(&event_id2),
+        client.get_event(&event_id2).is_finalized
+    );
 }
 
 #[test]
@@ -669,7 +678,10 @@ fn test_get_event_count_matches_platform_statistics_total_events() {
     let creator = Address::generate(&env);
 
     // Verified that get_event_count and get_platform_statistics.total_events agree.
-    assert_eq!(client.get_event_count(), client.get_platform_statistics().total_events);
+    assert_eq!(
+        client.get_event_count(),
+        client.get_platform_statistics().total_events
+    );
 
     fund(&env, &xlm_token, &creator, FEE);
     let start_time = get_future_time(&env, 3600);
@@ -686,7 +698,167 @@ fn test_get_event_count_matches_platform_statistics_total_events() {
         &0i128,
     );
 
-    assert_eq!(client.get_event_count(), client.get_platform_statistics().total_events);
+    assert_eq!(
+        client.get_event_count(),
+        client.get_platform_statistics().total_events
+    );
     assert_eq!(client.get_event_count(), 1);
 }
 
+// =============================================================================
+// get_event_prize_pool tests (#1021)
+// =============================================================================
+
+/// Pre-join test: get_event_prize_pool returns the creator-seeded amount before
+/// any participants join.
+#[test]
+fn test_get_event_prize_pool_pre_join_equals_initial_seed() {
+    let (env, client, _contract_id, xlm_token) = setup();
+    let creator = Address::generate(&env);
+
+    let prize_pool: i128 = 1_000_000_000;
+    fund(&env, &xlm_token, &creator, FEE + prize_pool);
+
+    let start_time = get_future_time(&env, 3600);
+    let end_time = get_future_time(&env, 7200);
+    let mut dist = Vec::new(&env);
+    dist.push_back(100u32);
+
+    let (event_id, _invite_code) = client.create_event(
+        &creator,
+        &title(&env),
+        &desc(&env),
+        &10u32,
+        &start_time,
+        &end_time,
+        &prize_pool,
+        &dist,
+        &0i128,
+    );
+
+    // Before any joins the pool must equal the seeded amount.
+    assert_eq!(client.get_event_prize_pool(&event_id), prize_pool);
+}
+
+/// Post-join growth test: prize pool grows by entry_fee with every join.
+#[test]
+fn test_get_event_prize_pool_grows_with_entry_fees() {
+    let (env, client, _contract_id, xlm_token) = setup();
+    let creator = Address::generate(&env);
+
+    let seed: i128 = 500_000_000;
+    let entry_fee: i128 = 50_000_000;
+    let n: usize = 3;
+
+    fund(&env, &xlm_token, &creator, FEE + seed);
+
+    let start_time = get_future_time(&env, 3600);
+    let end_time = get_future_time(&env, 7200);
+    let mut dist = Vec::new(&env);
+    dist.push_back(100u32);
+
+    let (event_id, invite_code) = client.create_event(
+        &creator,
+        &title(&env),
+        &desc(&env),
+        &10u32,
+        &start_time,
+        &end_time,
+        &seed,
+        &dist,
+        &entry_fee,
+    );
+
+    // Pool starts at seed.
+    assert_eq!(client.get_event_prize_pool(&event_id), seed);
+
+    // Each join adds exactly entry_fee to the pool.
+    for i in 0..n {
+        let user = Address::generate(&env);
+        fund(&env, &xlm_token, &user, entry_fee);
+        client.join_event(&user, &invite_code);
+        let expected = seed + ((i + 1) as i128) * entry_fee;
+        assert_eq!(client.get_event_prize_pool(&event_id), expected);
+    }
+
+    // Final pool = seed + n × entry_fee.
+    assert_eq!(
+        client.get_event_prize_pool(&event_id),
+        seed + (n as i128) * entry_fee
+    );
+}
+
+/// Post-finalize test: get_event_prize_pool does not panic after finalization
+/// and still reflects the total pool that was distributed.
+#[test]
+fn test_get_event_prize_pool_post_finalize_is_readable() {
+    let (env, client, contract_id, xlm_token) = setup();
+    let creator = Address::generate(&env);
+
+    let prize_pool: i128 = 10_000_000;
+    fund(&env, &xlm_token, &creator, FEE + prize_pool);
+
+    let start_time = get_future_time(&env, 3600);
+    let end_time = get_future_time(&env, 7200);
+    let mut dist = Vec::new(&env);
+    dist.push_back(100u32);
+
+    let (event_id, invite_code) = client.create_event(
+        &creator,
+        &title(&env),
+        &desc(&env),
+        &10u32,
+        &start_time,
+        &end_time,
+        &prize_pool,
+        &dist,
+        &0i128,
+    );
+
+    // Retrieve the ai_agent so we can submit a match result.
+    let ai_agent = client.get_ai_agent();
+
+    // Add one match directly via storage.
+    let match_id = env.as_contract(&contract_id, || {
+        let mid = storage::next_match_id(&env);
+        let m = Match::new(
+            mid,
+            event_id,
+            String::from_str(&env, "Team A"),
+            String::from_str(&env, "Team B"),
+            env.ledger().timestamp() + 100,
+            1u32,
+        );
+        storage::set_match(&env, mid, &m);
+        storage::add_event_match(&env, event_id, mid);
+        let mut event = storage::get_event(&env, event_id).expect("event exists");
+        event.add_match();
+        storage::set_event(&env, event_id, &event);
+        mid
+    });
+
+    let user = Address::generate(&env);
+    client.join_event(&user, &invite_code);
+    client.submit_prediction(&user, &match_id, &1u32, &0u32);
+
+    // Advance past end_time, submit result, then finalize.
+    env.ledger().with_mut(|l| l.timestamp = end_time + 10);
+    client.submit_match_result(&ai_agent, &match_id, &1u32, &0u32);
+    client.finalize_event(&creator, &event_id);
+
+    assert!(client.get_event(&event_id).is_finalized);
+
+    // get_event_prize_pool must not panic for a finalized event and must return
+    // the recorded pool amount (prize_pool field is not zeroed by finalization).
+    let pool = client.get_event_prize_pool(&event_id);
+    assert_eq!(pool, prize_pool);
+}
+
+/// Not-found test: calling get_event_prize_pool with a non-existent event_id
+/// panics with "event_not_found".
+#[test]
+#[should_panic(expected = "event_not_found")]
+fn test_get_event_prize_pool_not_found_panics() {
+    let (_env, client, _contract_id, _xlm_token) = setup();
+    client.get_event_prize_pool(&9999u64);
+}

@@ -483,29 +483,11 @@ fn test_prediction_is_before_match_time() {
     assert!(pred_before.is_before_match_time(match_time));
 
     // Predicted exactly at match time — not before
-    let pred_at = Prediction::new(
-        2,
-        5,
-        10,
-        predictor.clone(),
-        2u32,
-        1u32,
-        match_time,
-        &env,
-    );
+    let pred_at = Prediction::new(2, 5, 10, predictor.clone(), 2u32, 1u32, match_time, &env);
     assert!(!pred_at.is_before_match_time(match_time));
 
     // Predicted after match time
-    let pred_after = Prediction::new(
-        3,
-        5,
-        10,
-        predictor,
-        2u32,
-        1u32,
-        match_time + 1,
-        &env,
-    );
+    let pred_after = Prediction::new(3, 5, 10, predictor, 2u32, 1u32, match_time + 1, &env);
     assert!(!pred_after.is_before_match_time(match_time));
 }
 

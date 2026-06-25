@@ -711,7 +711,10 @@ fn test_get_event_prize_pool_and_distribution_views() {
     );
 
     assert_eq!(client.get_event_prize_pool(&event_id), PRIZE_POOL);
-    assert_eq!(client.get_event_reward_distribution(&event_id), distribution(&env));
+    assert_eq!(
+        client.get_event_reward_distribution(&event_id),
+        distribution(&env)
+    );
 
     // Fields are persisted on the event itself, not finalized at creation.
     let event = client.get_event(&event_id);

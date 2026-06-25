@@ -2,8 +2,8 @@
 use creator_event_manager::storage;
 use creator_event_manager::CreatorEventManagerContractClient;
 use soroban_sdk::testutils::Address as _;
-use soroban_sdk::testutils::Ledger as _;
 use soroban_sdk::testutils::Events as _;
+use soroban_sdk::testutils::Ledger as _;
 use soroban_sdk::token::{StellarAssetClient, TokenClient};
 use soroban_sdk::{Address, Env, String, Symbol, Vec};
 
@@ -130,7 +130,10 @@ fn test_join_event_emits_correct_event() {
 
     let events = env.events().all();
     let mut found = false;
-    let expected_topics = (Symbol::new(&env, "participant"), Symbol::new(&env, "joined"));
+    let expected_topics = (
+        Symbol::new(&env, "participant"),
+        Symbol::new(&env, "joined"),
+    );
     let expected_data = (event_id, user.clone());
 
     use soroban_sdk::TryIntoVal;
@@ -169,18 +172,21 @@ fn test_join_event_failed_does_not_emit_event() {
     use soroban_sdk::TryIntoVal;
 
     let events_before = env.events().all();
-    let num_participant_joined_before = events_before.iter().filter(|event| {
-        if event.0 != contract_id || event.1.len() != 2 {
-            return false;
-        }
-        let topic0: Result<Symbol, _> = event.1.get(0).unwrap().try_into_val(&env);
-        let topic1: Result<Symbol, _> = event.1.get(1).unwrap().try_into_val(&env);
-        if let (Ok(t0), Ok(t1)) = (topic0, topic1) {
-            t0 == Symbol::new(&env, "participant") && t1 == Symbol::new(&env, "joined")
-        } else {
-            false
-        }
-    }).count();
+    let num_participant_joined_before = events_before
+        .iter()
+        .filter(|event| {
+            if event.0 != contract_id || event.1.len() != 2 {
+                return false;
+            }
+            let topic0: Result<Symbol, _> = event.1.get(0).unwrap().try_into_val(&env);
+            let topic1: Result<Symbol, _> = event.1.get(1).unwrap().try_into_val(&env);
+            if let (Ok(t0), Ok(t1)) = (topic0, topic1) {
+                t0 == Symbol::new(&env, "participant") && t1 == Symbol::new(&env, "joined")
+            } else {
+                false
+            }
+        })
+        .count();
 
     // Call join_event expecting panic
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -189,22 +195,27 @@ fn test_join_event_failed_does_not_emit_event() {
     assert!(result.is_err());
 
     let events_after = env.events().all();
-    let num_participant_joined_after = events_after.iter().filter(|event| {
-        if event.0 != contract_id || event.1.len() != 2 {
-            return false;
-        }
-        let topic0: Result<Symbol, _> = event.1.get(0).unwrap().try_into_val(&env);
-        let topic1: Result<Symbol, _> = event.1.get(1).unwrap().try_into_val(&env);
-        if let (Ok(t0), Ok(t1)) = (topic0, topic1) {
-            t0 == Symbol::new(&env, "participant") && t1 == Symbol::new(&env, "joined")
-        } else {
-            false
-        }
-    }).count();
+    let num_participant_joined_after = events_after
+        .iter()
+        .filter(|event| {
+            if event.0 != contract_id || event.1.len() != 2 {
+                return false;
+            }
+            let topic0: Result<Symbol, _> = event.1.get(0).unwrap().try_into_val(&env);
+            let topic1: Result<Symbol, _> = event.1.get(1).unwrap().try_into_val(&env);
+            if let (Ok(t0), Ok(t1)) = (topic0, topic1) {
+                t0 == Symbol::new(&env, "participant") && t1 == Symbol::new(&env, "joined")
+            } else {
+                false
+            }
+        })
+        .count();
 
-    assert_eq!(num_participant_joined_before, num_participant_joined_after, "Failed join should not emit event");
+    assert_eq!(
+        num_participant_joined_before, num_participant_joined_after,
+        "Failed join should not emit event"
+    );
 }
-
 
 #[test]
 #[should_panic(expected = "invalid_invite_code")]
@@ -814,7 +825,6 @@ fn test_get_prediction_distribution_multiple_matches_independent() {
     assert_eq!((a2, b2, d2), (0, 0, 1));
 }
 
-
 // ---------------------------------------------------------------------------
 // Kickoff time boundary tests (#1017)
 // ---------------------------------------------------------------------------
@@ -830,8 +840,15 @@ fn test_submit_prediction_at_exact_match_time_rejected() {
     let initial_ts = env.ledger().timestamp();
     let match_time = initial_ts + match_time_offset;
 
-    let (_event_id, invite_code, match_id) =
-        create_event_and_match(&env, &contract_id, &client, &creator, &xlm_token, 2, match_time_offset);
+    let (_event_id, invite_code, match_id) = create_event_and_match(
+        &env,
+        &contract_id,
+        &client,
+        &creator,
+        &xlm_token,
+        2,
+        match_time_offset,
+    );
 
     client.join_event(&predictor, &invite_code);
 
@@ -852,8 +869,15 @@ fn test_submit_prediction_after_kickoff_plus_3600_rejected() {
     let initial_ts = env.ledger().timestamp();
     let match_time = initial_ts + match_time_offset;
 
-    let (_event_id, invite_code, match_id) =
-        create_event_and_match(&env, &contract_id, &client, &creator, &xlm_token, 2, match_time_offset);
+    let (_event_id, invite_code, match_id) = create_event_and_match(
+        &env,
+        &contract_id,
+        &client,
+        &creator,
+        &xlm_token,
+        2,
+        match_time_offset,
+    );
 
     client.join_event(&predictor, &invite_code);
 
@@ -873,8 +897,15 @@ fn test_submit_prediction_just_before_kickoff_succeeds() {
     let initial_ts = env.ledger().timestamp();
     let match_time = initial_ts + match_time_offset;
 
-    let (_event_id, invite_code, match_id) =
-        create_event_and_match(&env, &contract_id, &client, &creator, &xlm_token, 2, match_time_offset);
+    let (_event_id, invite_code, match_id) = create_event_and_match(
+        &env,
+        &contract_id,
+        &client,
+        &creator,
+        &xlm_token,
+        2,
+        match_time_offset,
+    );
 
     client.join_event(&predictor, &invite_code);
 
@@ -1018,14 +1049,7 @@ fn test_prize_pool_reflects_creator_seed_plus_entry_fees() {
     reward.push_back(100u32);
 
     let (event_id, invite_code) = create_paid_event(
-        &env,
-        &client,
-        &creator,
-        &xlm_token,
-        n as u32,
-        entry_fee,
-        seed,
-        reward,
+        &env, &client, &creator, &xlm_token, n as u32, entry_fee, seed, reward,
     );
 
     // The seed is in the pool before anyone joins.
@@ -1040,4 +1064,100 @@ fn test_prize_pool_reflects_creator_seed_plus_entry_fees() {
     let expected = seed + (n as i128) * entry_fee;
     assert_eq!(client.get_event_prize_pool(&event_id), expected);
     assert_eq!(client.get_event(&event_id).participant_count, n as u32);
+}
+
+// ---------------------------------------------------------------------------
+// Entry-fee tests (#1023) — explicit balance-before/after verification
+// ---------------------------------------------------------------------------
+
+/// Happy-path: verify the entry fee is debited exactly once and the prize pool
+/// increases by exactly the same amount in a single join call.
+#[test]
+fn test_entry_fee_happy_path_single_transfer_verified() {
+    let (env, client, _contract_id, _admin, xlm_token) = setup();
+    let creator = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    let entry_fee: i128 = 7_500_000;
+    let (event_id, invite_code) = create_paid_event(
+        &env,
+        &client,
+        &creator,
+        &xlm_token,
+        10,
+        entry_fee,
+        0,
+        Vec::new(&env),
+    );
+
+    // Fund the user with exactly entry_fee — no more, no less.
+    fund(&env, &xlm_token, &user, entry_fee);
+    let balance_before = TokenClient::new(&env, &xlm_token).balance(&user);
+    assert_eq!(balance_before, entry_fee);
+
+    client.join_event(&user, &invite_code);
+
+    let balance_after = TokenClient::new(&env, &xlm_token).balance(&user);
+    // Exactly one transfer of entry_fee occurred.
+    assert_eq!(balance_after, 0);
+    assert_eq!(balance_before - balance_after, entry_fee);
+    // Prize pool grew by exactly entry_fee.
+    assert_eq!(client.get_event_prize_pool(&event_id), entry_fee);
+    assert_eq!(client.get_event(&event_id).participant_count, 1);
+}
+
+/// Insufficient funds test: funding with exactly entry_fee − 1 stroops must be rejected.
+#[test]
+#[should_panic(expected = "insufficient_entry_fee_balance")]
+fn test_entry_fee_insufficient_by_one_stroop_rejected() {
+    let (env, client, _contract_id, _admin, xlm_token) = setup();
+    let creator = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    let entry_fee: i128 = 5_000_000;
+    let (_event_id, invite_code) = create_paid_event(
+        &env,
+        &client,
+        &creator,
+        &xlm_token,
+        10,
+        entry_fee,
+        0,
+        Vec::new(&env),
+    );
+
+    // Fund with exactly one stroop less than the required entry fee.
+    fund(&env, &xlm_token, &user, entry_fee - 1);
+
+    client.join_event(&user, &invite_code);
+}
+
+/// Zero fee test: a user with no XLM can join an event whose entry_fee = 0;
+/// no token transfer must occur and the prize pool stays unchanged.
+#[test]
+fn test_entry_fee_zero_join_requires_no_xlm() {
+    let (env, client, _contract_id, _admin, xlm_token) = setup();
+    let creator = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    // Explicitly create a paid-event helper with entry_fee = 0 (and no seed pool).
+    let (event_id, invite_code) = create_paid_event(
+        &env,
+        &client,
+        &creator,
+        &xlm_token,
+        10,
+        0i128,
+        0i128,
+        Vec::new(&env),
+    );
+
+    // User starts with zero XLM; join must succeed without any transfer.
+    assert_eq!(TokenClient::new(&env, &xlm_token).balance(&user), 0);
+    client.join_event(&user, &invite_code);
+
+    // Balance unchanged; pool still 0; participant count incremented.
+    assert_eq!(TokenClient::new(&env, &xlm_token).balance(&user), 0);
+    assert_eq!(client.get_event_prize_pool(&event_id), 0);
+    assert_eq!(client.get_event(&event_id).participant_count, 1);
 }

@@ -195,11 +195,15 @@ pub fn get_user_score(
         if let Ok(prediction) = storage::get_prediction(env, prediction_id) {
             // Add earned points
             if let Some(points) = prediction.points_earned {
-                total_points = total_points.checked_add(points).ok_or(OracleError::Overflow)?;
+                total_points = total_points
+                    .checked_add(points)
+                    .ok_or(OracleError::Overflow)?;
             }
             // Count correct results
             if prediction.is_correct == Some(true) {
-                correct_results = correct_results.checked_add(1).ok_or(OracleError::Overflow)?;
+                correct_results = correct_results
+                    .checked_add(1)
+                    .ok_or(OracleError::Overflow)?;
             }
             // Count exact scores: load the match to compare actual vs predicted scores.
             // This is multiplier-agnostic — an exact score is one where both predicted
@@ -211,8 +215,7 @@ pub fn get_user_score(
                     if prediction.predicted_home_score == actual_home
                         && prediction.predicted_away_score == actual_away
                     {
-                        exact_scores =
-                            exact_scores.checked_add(1).ok_or(OracleError::Overflow)?;
+                        exact_scores = exact_scores.checked_add(1).ok_or(OracleError::Overflow)?;
                     }
                 }
             }

@@ -93,8 +93,9 @@ pub fn get_event_leaderboard(
             if let Ok(prediction) = storage::get_prediction(env, prediction_id) {
                 // Add earned points (None counts as 0)
                 if let Some(points) = prediction.points_earned {
-                    total_points =
-                        total_points.checked_add(points).ok_or(LeaderboardError::Overflow)?;
+                    total_points = total_points
+                        .checked_add(points)
+                        .ok_or(LeaderboardError::Overflow)?;
                 }
 
                 // Count correct results
@@ -105,12 +106,15 @@ pub fn get_event_leaderboard(
                 }
 
                 // Count exact scores (4 points means exact score)
-                if prediction.points_earned == Some(
-                    crate::storage_types::POINTS_CORRECT_RESULT
-                        + crate::storage_types::POINTS_EXACT_SCORE,
-                ) {
-                    exact_scores =
-                        exact_scores.checked_add(1).ok_or(LeaderboardError::Overflow)?;
+                if prediction.points_earned
+                    == Some(
+                        crate::storage_types::POINTS_CORRECT_RESULT
+                            + crate::storage_types::POINTS_EXACT_SCORE,
+                    )
+                {
+                    exact_scores = exact_scores
+                        .checked_add(1)
+                        .ok_or(LeaderboardError::Overflow)?;
                 }
 
                 // Track latest prediction time

@@ -644,8 +644,8 @@ impl Prediction {
         predicted_at: u64,
         env: &soroban_sdk::Env,
     ) -> Self {
-        let predicted_outcome = MatchResult::from_scores(predicted_home_score, predicted_away_score)
-            .to_u8();
+        let predicted_outcome =
+            MatchResult::from_scores(predicted_home_score, predicted_away_score).to_u8();
         let outcome_symbol = match predicted_outcome {
             0 => Symbol::new(env, OUTCOME_TEAM_A),
             1 => Symbol::new(env, OUTCOME_TEAM_B),

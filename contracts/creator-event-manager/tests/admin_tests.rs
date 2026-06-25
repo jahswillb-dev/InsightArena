@@ -519,4 +519,3 @@ fn test_update_creation_fee_must_be_strictly_positive() {
 
     client.update_creation_fee(&admin, &0i128);
 }
-

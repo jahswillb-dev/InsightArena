@@ -274,7 +274,12 @@ fn test_finalize_event_with_unresolved_match_rejected() {
 
     // Past end_time, but only resolve the first of two matches.
     env.ledger().set_timestamp(env.ledger().timestamp() + 7300);
-    submit_result(&client, &ai_agent, match_ids.get(0).unwrap(), MatchResult::TeamA);
+    submit_result(
+        &client,
+        &ai_agent,
+        match_ids.get(0).unwrap(),
+        MatchResult::TeamA,
+    );
 
     let caller = Address::generate(&env);
     client.finalize_event(&caller, &event_id);
@@ -302,7 +307,12 @@ fn test_finalize_event_twice_rejected() {
     client.submit_prediction(&user, &match_ids.get(0).unwrap(), &1u32, &0u32);
 
     env.ledger().set_timestamp(env.ledger().timestamp() + 7300);
-    submit_result(&client, &ai_agent, match_ids.get(0).unwrap(), MatchResult::TeamA);
+    submit_result(
+        &client,
+        &ai_agent,
+        match_ids.get(0).unwrap(),
+        MatchResult::TeamA,
+    );
 
     let caller = Address::generate(&env);
     client.finalize_event(&caller, &event_id);
@@ -341,7 +351,12 @@ fn test_finalize_event_fewer_participants_than_ranks_refunds_creator() {
     client.submit_prediction(&user2, &match_ids.get(0).unwrap(), &0u32, &1u32);
 
     env.ledger().set_timestamp(env.ledger().timestamp() + 7300);
-    submit_result(&client, &ai_agent, match_ids.get(0).unwrap(), MatchResult::TeamA);
+    submit_result(
+        &client,
+        &ai_agent,
+        match_ids.get(0).unwrap(),
+        MatchResult::TeamA,
+    );
 
     let caller = Address::generate(&env);
     let payouts = client.finalize_event(&caller, &event_id);
@@ -418,7 +433,12 @@ fn test_finalize_event_integer_division_dust_refunded_to_creator() {
     client.submit_prediction(&user2, &match_ids.get(0).unwrap(), &0u32, &1u32);
 
     env.ledger().set_timestamp(env.ledger().timestamp() + 7300);
-    submit_result(&client, &ai_agent, match_ids.get(0).unwrap(), MatchResult::TeamA);
+    submit_result(
+        &client,
+        &ai_agent,
+        match_ids.get(0).unwrap(),
+        MatchResult::TeamA,
+    );
 
     let creator_balance_before = balance(&env, &xlm_token, &creator);
 
@@ -468,7 +488,12 @@ fn test_finalize_event_zero_prize_pool_noop() {
     client.submit_prediction(&user, &match_ids.get(0).unwrap(), &1u32, &0u32);
 
     env.ledger().set_timestamp(env.ledger().timestamp() + 7300);
-    submit_result(&client, &ai_agent, match_ids.get(0).unwrap(), MatchResult::TeamA);
+    submit_result(
+        &client,
+        &ai_agent,
+        match_ids.get(0).unwrap(),
+        MatchResult::TeamA,
+    );
 
     assert_eq!(balance(&env, &xlm_token, &contract_id), 0);
 
@@ -505,7 +530,12 @@ fn test_finalize_event_permissionless() {
     client.submit_prediction(&user, &match_ids.get(0).unwrap(), &1u32, &0u32);
 
     env.ledger().set_timestamp(env.ledger().timestamp() + 7300);
-    submit_result(&client, &ai_agent, match_ids.get(0).unwrap(), MatchResult::TeamA);
+    submit_result(
+        &client,
+        &ai_agent,
+        match_ids.get(0).unwrap(),
+        MatchResult::TeamA,
+    );
 
     // A random address — neither admin nor creator — can finalize.
     let random_caller = Address::generate(&env);
@@ -514,4 +544,113 @@ fn test_finalize_event_permissionless() {
     assert_eq!(payouts.len(), 1);
     assert_eq!(balance(&env, &xlm_token, &user), PRIZE);
     assert_eq!(balance(&env, &xlm_token, &contract_id), 0);
+}
+
+// ---------------------------------------------------------------------------
+// Entry-fee accumulation before finalize (#1027)
+// ---------------------------------------------------------------------------
+
+/// Seed pool + entry fees accumulate correctly and the full combined pool is
+/// distributed on finalization.  An odd seed is used so that integer-division
+/// dust is generated and verified to reach the creator rather than being lost.
+#[test]
+fn test_finalize_event_seed_pool_plus_entry_fees_combined() {
+    let (env, client, contract_id, creator, ai_agent, xlm_token) = setup();
+
+    // Odd seed so 60/40 split leaves a 1-stroop dust remainder.
+    let seed_pool: i128 = 5_000_001;
+    let entry_fee: i128 = 1_000_000;
+
+    fund(&env, &xlm_token, &creator, FEE + seed_pool);
+
+    let start_time = env.ledger().timestamp() + 3600;
+    let end_time = env.ledger().timestamp() + 7200;
+    let dist = reward_dist(&env, &[60, 40]);
+
+    let (event_id, invite_code) = client.create_event(
+        &creator,
+        &title(&env),
+        &desc(&env),
+        &100u32,
+        &start_time,
+        &end_time,
+        &seed_pool,
+        &dist,
+        &entry_fee,
+    );
+
+    // Before any joins, prize pool equals the seed.
+    assert_eq!(client.get_event_prize_pool(&event_id), seed_pool);
+
+    // Three participants each pay entry_fee.
+    let user1 = Address::generate(&env);
+    let user2 = Address::generate(&env);
+    let user3 = Address::generate(&env);
+
+    for user in [&user1, &user2, &user3] {
+        fund(&env, &xlm_token, user, entry_fee);
+        client.join_event(user, &invite_code);
+    }
+
+    // Prize pool is now seed + 3 × entry_fee.
+    let total_pool = seed_pool + 3 * entry_fee; // 5_000_001 + 3_000_000 = 8_000_001
+    assert_eq!(client.get_event_prize_pool(&event_id), total_pool);
+
+    // Add one match via storage.
+    let match_id = env.as_contract(&contract_id, || {
+        let mid = storage::next_match_id(&env);
+        let m = creator_event_manager::storage_types::Match::new(
+            mid,
+            event_id,
+            String::from_str(&env, "Team A"),
+            String::from_str(&env, "Team B"),
+            env.ledger().timestamp() + 100,
+            1u32,
+        );
+        storage::set_match(&env, mid, &m);
+        storage::add_event_match(&env, event_id, mid);
+        let mut event = storage::get_event(&env, event_id).expect("event exists");
+        event.add_match();
+        storage::set_event(&env, event_id, &event);
+        mid
+    });
+
+    // user1: exact 1-0 → 4 pts (rank 1)
+    // user2: correct result 2-0 → 1 pt  (rank 2)
+    // user3: wrong result  0-1 → 0 pts  (no prize)
+    client.submit_prediction(&user1, &match_id, &1u32, &0u32);
+    client.submit_prediction(&user2, &match_id, &2u32, &0u32);
+    client.submit_prediction(&user3, &match_id, &0u32, &1u32);
+
+    env.ledger().set_timestamp(env.ledger().timestamp() + 7300);
+    // Actual result: Team A wins 1-0.
+    submit_result(&client, &ai_agent, match_id, MatchResult::TeamA);
+
+    let caller = Address::generate(&env);
+    let payouts = client.finalize_event(&caller, &event_id);
+
+    // 8_000_001 * 60 / 100 = 4_800_000  (truncated)
+    // 8_000_001 * 40 / 100 = 3_200_000  (truncated)
+    // dust = 8_000_001 − 4_800_000 − 3_200_000 = 1 → creator
+    let expected_rank1 = total_pool * 60 / 100; // 4_800_000
+    let expected_rank2 = total_pool * 40 / 100; // 3_200_000
+    let expected_dust = total_pool - expected_rank1 - expected_rank2; // 1
+
+    assert_eq!(payouts.len(), 2);
+
+    // Verify token balances for each winner numerically.
+    assert_eq!(balance(&env, &xlm_token, &user1), expected_rank1);
+    assert_eq!(balance(&env, &xlm_token, &user2), expected_rank2);
+    // user3 paid the entry fee and scored 0 pts — receives no prize.
+    assert_eq!(balance(&env, &xlm_token, &user3), 0);
+
+    // Integer-division remainder goes to creator, not lost.
+    assert_eq!(balance(&env, &xlm_token, &creator), expected_dust);
+
+    // Total distributed equals seed_pool + N × entry_fee.
+    let total_out = expected_rank1 + expected_rank2 + expected_dust;
+    assert_eq!(total_out, total_pool);
+    assert_eq!(balance(&env, &xlm_token, &contract_id), 0);
+
+    assert!(client.get_event(&event_id).is_finalized);
 }

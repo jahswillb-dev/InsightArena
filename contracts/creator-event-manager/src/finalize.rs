@@ -105,8 +105,8 @@ pub fn finalize_event(
     // Ranked, deterministic leaderboard. The event was already loaded above, so
     // the only residual error path here is an (effectively unreachable) points
     // overflow; collapse it onto EventNotFound to stay within EventError.
-    let leaderboard = leaderboard::get_event_leaderboard(env, event_id)
-        .map_err(|_| EventError::EventNotFound)?;
+    let leaderboard =
+        leaderboard::get_event_leaderboard(env, event_id).map_err(|_| EventError::EventNotFound)?;
 
     let xlm_token = admin::get_xlm_token(env).unwrap_or_else(|| panic!("not_initialized"));
 
