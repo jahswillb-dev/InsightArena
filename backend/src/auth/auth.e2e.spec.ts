@@ -144,8 +144,15 @@ describe('Auth E2E — challenge → verify flow', () => {
     );
 
     mockUserPreferencesRepository.findOneBy.mockResolvedValue(null);
-    mockUserPreferencesRepository.create.mockImplementation((dto: any) => dto);
-    mockUserPreferencesRepository.save.mockImplementation((dto: any) => Promise.resolve(dto));
+    mockUserPreferencesRepository.create.mockImplementation(
+      (dto: { userId: string }) => ({
+        id: 'prefs-uuid',
+        userId: dto.userId,
+      } as UserPreferences),
+    );
+    mockUserPreferencesRepository.save.mockImplementation(
+      (prefs: UserPreferences) => Promise.resolve(prefs),
+    );
 
     mockJwtService.signAsync.mockResolvedValue('mock-jwt-token');
   });
@@ -186,6 +193,9 @@ describe('Auth E2E — challenge → verify flow', () => {
       sub: 'e2e-uuid',
       stellar_address: address,
     });
+    expect(mockUserPreferencesRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'e2e-uuid' }),
+    );
   });
 
   it('invalid signature → 401', async () => {

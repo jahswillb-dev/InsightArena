@@ -175,7 +175,9 @@ export class AuthService implements OnModuleInit {
     user = await this.usersRepository.save(user);
 
     if (isNewUser) {
-      const existingPrefs = await this.preferencesRepository.findOneBy({ userId: user.id });
+      const existingPrefs = await this.preferencesRepository.findOneBy({
+        userId: user.id,
+      });
       if (!existingPrefs) {
         const prefs = this.preferencesRepository.create({ userId: user.id });
         await this.preferencesRepository.save(prefs);

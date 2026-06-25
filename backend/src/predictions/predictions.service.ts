@@ -106,11 +106,14 @@ export class PredictionsService {
         .set({
           participant_count: () => 'participant_count + 1',
           ...(BigInt(dto.stake_amount_stroops) !== 0n
-            ? { total_pool_stroops: () => 'CAST(total_pool_stroops AS BIGINT) + :stake' }
+            ? {
+                total_pool_stroops: () =>
+                  'CAST(total_pool_stroops AS BIGINT) + :stakeAmount',
+              }
             : {}),
         })
-        .setParameters({ stake: dto.stake_amount_stroops })
         .where('id = :id', { id: market.id })
+        .setParameter('stakeAmount', BigInt(dto.stake_amount_stroops).toString())
         .execute();
 
       await manager
@@ -119,11 +122,14 @@ export class PredictionsService {
         .set({
           total_predictions: () => 'total_predictions + 1',
           ...(BigInt(dto.stake_amount_stroops) !== 0n
-            ? { total_staked_stroops: () => 'CAST(total_staked_stroops AS BIGINT) + :stake' }
+            ? {
+                total_staked_stroops: () =>
+                  'CAST(total_staked_stroops AS BIGINT) + :stakeAmount',
+              }
             : {}),
         })
-        .setParameters({ stake: dto.stake_amount_stroops })
         .where('id = :id', { id: user.id })
+        .setParameter('stakeAmount', BigInt(dto.stake_amount_stroops).toString())
         .execute();
 
       this.logger.log(

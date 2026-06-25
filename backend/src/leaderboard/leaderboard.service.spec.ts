@@ -7,6 +7,7 @@ import { LeaderboardEntry } from './entities/leaderboard-entry.entity';
 import { LeaderboardHistory } from './entities/leaderboard-history.entity';
 import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
+import { SeasonsService } from '../seasons/seasons.service';
 import { LeaderboardQueryDto } from './dto/leaderboard-query.dto';
 
 describe('LeaderboardService', () => {
@@ -64,6 +65,10 @@ describe('LeaderboardService', () => {
     findByAddress: jest.fn(),
   };
 
+  const mockSeasonsService = {
+    findActive: jest.fn(),
+  };
+
   const mockDataSource = {
     transaction: jest.fn(),
   };
@@ -89,6 +94,10 @@ describe('LeaderboardService', () => {
         {
           provide: UsersService,
           useValue: mockUsersService,
+        },
+        {
+          provide: SeasonsService,
+          useValue: mockSeasonsService,
         },
         {
           provide: getDataSourceToken(),
@@ -184,6 +193,23 @@ describe('LeaderboardService', () => {
       await service.getLeaderboard({ page: 1, limit: 999 });
 
       expect(mockQb.take).toHaveBeenCalledWith(100);
+    });
+  });
+
+  describe('getTopLeaderboard', () => {
+    it('should return top entries for the active season and cap at 20', async () => {
+      mockSeasonsService.findActive.mockResolvedValue({ id: 'season-1' });
+      mockQb.getManyAndCount.mockResolvedValue([[mockEntry], 1]);
+
+      const result = await service.getTopLeaderboard(50);
+
+      expect(mockSeasonsService.findActive).toHaveBeenCalled();
+      expect(mockQb.where).toHaveBeenCalledWith('entry.season_id = :season_id', {
+        season_id: 'season-1',
+      });
+      expect(mockQb.take).toHaveBeenCalledWith(20);
+      expect(result).toHaveLength(1);
+      expect(result[0].rank).toBe(1);
     });
   });
 

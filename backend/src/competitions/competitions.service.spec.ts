@@ -27,6 +27,7 @@ describe('CompetitionsService', () => {
     end_time: new Date('2026-06-30'),
     prize_pool_stroops: '5000000000',
     visibility: CompetitionVisibility.Public,
+    is_cancelled: false,
     invite_code: undefined,
     created_at: new Date('2024-01-01'),
   };
@@ -47,6 +48,61 @@ describe('CompetitionsService', () => {
     findOne: jest.fn(),
     count: jest.fn(),
   };
+
+  const makeListQueryBuilder = (competitions: Partial<Competition>[]) => {
+    let statusClause: string | null = null;
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      andWhere: jest.fn((clause: string) => {
+        statusClause = clause;
+        return qb;
+      }),
+      orderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn().mockImplementation(() => {
+        const filtered = competitions.filter((competition) => {
+          if (!statusClause) {
+            return true;
+          }
+
+          if (statusClause.includes('start_time <= :now')) {
+            return (
+              competition.start_time! <= currentNow &&
+              competition.end_time! >= currentNow &&
+              competition.is_cancelled !== true
+            );
+          }
+
+          if (statusClause.includes('start_time > :now')) {
+            return (
+              competition.start_time! > currentNow &&
+              competition.is_cancelled !== true
+            );
+          }
+
+          if (statusClause.includes('end_time < :now')) {
+            return (
+              competition.end_time! < currentNow &&
+              competition.is_cancelled !== true
+            );
+          }
+
+          if (statusClause.includes('is_cancelled = true')) {
+            return competition.is_cancelled === true;
+          }
+
+          return true;
+        });
+
+        return Promise.resolve([filtered, filtered.length]);
+      }),
+    };
+
+    return qb;
+  };
+
+  let currentNow = new Date();
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -128,6 +184,117 @@ describe('CompetitionsService', () => {
       ];
       const createArg = createCall[0];
       expect(createArg['invite_code']).toBeUndefined();
+    });
+  });
+
+  describe('list', () => {
+    beforeEach(() => {
+      currentNow = new Date('2026-06-15T12:00:00.000Z');
+      jest.useFakeTimers();
+      jest.setSystemTime(currentNow);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('returns only active competitions for status=active', async () => {
+      const upcoming = {
+        ...mockCompetition,
+        id: 'upcoming',
+        title: 'Upcoming',
+        start_time: new Date('2026-06-22T12:00:00.000Z'),
+        end_time: new Date('2026-06-29T12:00:00.000Z'),
+      };
+      const active = {
+        ...mockCompetition,
+        id: 'active',
+        title: 'Active',
+        start_time: new Date('2026-06-14T12:00:00.000Z'),
+        end_time: new Date('2026-06-21T12:00:00.000Z'),
+      };
+      const ended = {
+        ...mockCompetition,
+        id: 'ended',
+        title: 'Ended',
+        start_time: new Date('2026-06-01T12:00:00.000Z'),
+        end_time: new Date('2026-06-08T12:00:00.000Z'),
+      };
+
+      mockRepository.createQueryBuilder.mockReturnValue(
+        makeListQueryBuilder([upcoming, active, ended]) as never,
+      );
+
+      const result = await service.list({ status: 'active' as never });
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].title).toBe('Active');
+    });
+
+    it('returns only upcoming competitions for status=upcoming', async () => {
+      const upcoming = {
+        ...mockCompetition,
+        id: 'upcoming',
+        title: 'Upcoming',
+        start_time: new Date('2026-06-22T12:00:00.000Z'),
+        end_time: new Date('2026-06-29T12:00:00.000Z'),
+      };
+      const active = {
+        ...mockCompetition,
+        id: 'active',
+        title: 'Active',
+        start_time: new Date('2026-06-14T12:00:00.000Z'),
+        end_time: new Date('2026-06-21T12:00:00.000Z'),
+      };
+      const ended = {
+        ...mockCompetition,
+        id: 'ended',
+        title: 'Ended',
+        start_time: new Date('2026-06-01T12:00:00.000Z'),
+        end_time: new Date('2026-06-08T12:00:00.000Z'),
+      };
+
+      mockRepository.createQueryBuilder.mockReturnValue(
+        makeListQueryBuilder([upcoming, active, ended]) as never,
+      );
+
+      const result = await service.list({ status: 'upcoming' as never });
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].title).toBe('Upcoming');
+    });
+
+    it('returns only ended competitions for status=ended', async () => {
+      const upcoming = {
+        ...mockCompetition,
+        id: 'upcoming',
+        title: 'Upcoming',
+        start_time: new Date('2026-06-22T12:00:00.000Z'),
+        end_time: new Date('2026-06-29T12:00:00.000Z'),
+      };
+      const active = {
+        ...mockCompetition,
+        id: 'active',
+        title: 'Active',
+        start_time: new Date('2026-06-14T12:00:00.000Z'),
+        end_time: new Date('2026-06-21T12:00:00.000Z'),
+      };
+      const ended = {
+        ...mockCompetition,
+        id: 'ended',
+        title: 'Ended',
+        start_time: new Date('2026-06-01T12:00:00.000Z'),
+        end_time: new Date('2026-06-08T12:00:00.000Z'),
+      };
+
+      mockRepository.createQueryBuilder.mockReturnValue(
+        makeListQueryBuilder([upcoming, active, ended]) as never,
+      );
+
+      const result = await service.list({ status: 'ended' as never });
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].title).toBe('Ended');
     });
   });
 

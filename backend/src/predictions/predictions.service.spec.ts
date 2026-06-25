@@ -63,13 +63,22 @@ describe('PredictionsService', () => {
   let mockMarketsRepo: MockRepo<Market>;
   let mockSoroban: jest.Mocked<SorobanService>;
   let submitPrediction: jest.SpyInstance;
+  let qbMock: {
+    update: jest.Mock;
+    set: jest.Mock;
+    setParameters: jest.Mock;
+    where: jest.Mock;
+    setParameter: jest.Mock;
+    execute: jest.Mock;
+  };
 
   beforeEach(async () => {
-    const qbMock = {
+    qbMock = {
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
       setParameters: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -146,6 +155,10 @@ describe('PredictionsService', () => {
         tx_hash: 'abc123',
         chosen_outcome: 'Yes',
       });
+      expect(qbMock.setParameter).toHaveBeenCalledWith(
+        'stakeAmount',
+        '10000000',
+      );
     });
 
     it('throws NotFoundException when market does not exist', async () => {

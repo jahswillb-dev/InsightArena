@@ -1,13 +1,15 @@
-import { Controller, Get, Query, Param } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiQuery,
-  ApiParam,
-} from '@nestjs/swagger';
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Query,
+  UseInterceptors,
+} from '@nestjs/common';
+import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { LeaderboardService } from './leaderboard.service';
-import type {
+import {
   LeaderboardQueryDto,
   LeaderboardEntryResponse,
   PaginatedLeaderboardResponse,
@@ -17,16 +19,26 @@ import {
   PaginatedLeaderboardHistoryResponse,
 } from './dto/leaderboard-history.dto';
 import { UserRankDto } from './dto/user-rank.dto';
-import {
-  CursorPaginationDto,
-  PaginatedCursorResponse,
-} from './dto/cursor-pagination.dto';
 import { Public } from '../common/decorators/public.decorator';
 
 @ApiTags('Leaderboard')
 @Controller('leaderboard')
 export class LeaderboardController {
   constructor(private readonly leaderboardService: LeaderboardService) {}
+
+  @Get('top/:n')
+  @Public()
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(60)
+  @ApiOperation({
+    summary: 'Get top N leaderboard entries for the active season',
+  })
+  @ApiQuery({ name: 'n', required: true, type: Number, description: 'Max 20' })
+  async getTopLeaderboard(
+    @Param('n', ParseIntPipe) n: number,
+  ): Promise<LeaderboardEntryResponse[]> {
+    return this.leaderboardService.getTopLeaderboard(n);
+  }
 
   @Get()
   @Public()
@@ -48,29 +60,6 @@ export class LeaderboardController {
     @Query() query: LeaderboardQueryDto,
   ): Promise<PaginatedLeaderboardResponse> {
     return this.leaderboardService.getLeaderboard(query);
-  }
-
-  @Get('cursor')
-  @Public()
-  @ApiOperation({
-    summary: 'Get leaderboard with cursor-based pagination (stable, cached)',
-  })
-  @ApiQuery({ name: 'cursor', required: false, type: String })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Max 100',
-  })
-  @ApiQuery({ name: 'season_id', required: false, type: String })
-  @ApiResponse({
-    status: 200,
-    description: 'Cursor-paginated leaderboard with caching for hot pages',
-  })
-  async getLeaderboardCursor(
-    @Query() query: CursorPaginationDto,
-  ): Promise<PaginatedCursorResponse> {
-    return this.leaderboardService.getLeaderboardCursor(query);
   }
 
   @Get('history')
@@ -96,29 +85,6 @@ export class LeaderboardController {
       );
     }
     return this.leaderboardService.getHistory(query);
-  }
-
-  @Get('top/:n')
-  @Public()
-  @ApiOperation({
-    summary:
-      'Get top N leaderboard entries for the current active season (lightweight shortcut)',
-  })
-  @ApiParam({
-    name: 'n',
-    description: 'Number of entries to return (max 20)',
-    type: Number,
-  })
-  @ApiQuery({ name: 'season_id', required: false, type: String })
-  @ApiResponse({
-    status: 200,
-    description: 'Top N leaderboard entries, served from cache when available',
-  })
-  async getTopN(
-    @Param('n') n: number,
-    @Query('season_id') seasonId?: string,
-  ): Promise<LeaderboardEntryResponse[]> {
-    return this.leaderboardService.getTopN(n, seasonId);
   }
 
   @Get(':address')

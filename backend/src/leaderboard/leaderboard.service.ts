@@ -30,6 +30,7 @@ import {
   PaginatedCursorResponse,
 } from './dto/cursor-pagination.dto';
 import { CACHE_WARMING_KEYS } from '../cache/cache-warming.keys';
+import { SeasonsService } from '../seasons/seasons.service';
 
 @Injectable()
 export class LeaderboardService {
@@ -42,6 +43,7 @@ export class LeaderboardService {
     @InjectRepository(LeaderboardHistory)
     private readonly historyRepository: Repository<LeaderboardHistory>,
     private readonly usersService: UsersService,
+    private readonly seasonsService: SeasonsService,
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
@@ -91,6 +93,35 @@ export class LeaderboardService {
     });
 
     return { data, total, page, limit };
+  }
+
+  async getTopLeaderboard(limit: number): Promise<LeaderboardEntryResponse[]> {
+    const season = await this.seasonsService.findActive();
+    const cappedLimit = Math.min(limit, 20);
+
+    const [entries] = await this.leaderboardRepository
+      .createQueryBuilder('entry')
+      .leftJoinAndSelect('entry.user', 'user')
+      .where('entry.season_id = :season_id', { season_id: season.id })
+      .orderBy('entry.rank', 'ASC')
+      .take(cappedLimit)
+      .getManyAndCount();
+
+    return entries.map((entry) => ({
+      rank: entry.rank,
+      user_id: entry.user_id,
+      username: entry.user?.username ?? null,
+      stellar_address: entry.user?.stellar_address ?? '',
+      reputation_score: entry.reputation_score,
+      accuracy_rate:
+        entry.total_predictions > 0
+          ? ((entry.correct_predictions / entry.total_predictions) * 100).toFixed(
+              1,
+            )
+          : '0.0',
+      total_winnings_stroops: entry.total_winnings_stroops,
+      season_points: entry.season_points,
+    }));
   }
 
   /**

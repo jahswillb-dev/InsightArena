@@ -81,17 +81,24 @@ describe('AuthService', () => {
     usersRepository.findOneBy.mockResolvedValue(null);
     usersRepository.create.mockReturnValue(savedUser);
     usersRepository.save.mockResolvedValue(savedUser);
-
     preferencesRepository.findOneBy.mockResolvedValue(null);
-    preferencesRepository.create.mockReturnValue({ id: 'p-1', userId: 'u-1' } as UserPreferences);
-    preferencesRepository.save.mockResolvedValue({ id: 'p-1', userId: 'u-1' } as UserPreferences);
+    preferencesRepository.create.mockReturnValue(
+      { userId: savedUser.id } as UserPreferences,
+    );
+    preferencesRepository.save.mockResolvedValue(
+      { userId: savedUser.id } as UserPreferences,
+    );
 
     const user = await service.verifySignature(address, 'signed-hex');
 
     expect(user).toEqual(savedUser);
     expect(usersRepository.save).toHaveBeenCalledWith(savedUser);
-    expect(preferencesRepository.findOneBy).toHaveBeenCalledWith({ userId: 'u-1' });
-    expect(preferencesRepository.create).toHaveBeenCalledWith({ userId: 'u-1' });
+    expect(preferencesRepository.findOneBy).toHaveBeenCalledWith({
+      userId: 'u-1',
+    });
+    expect(preferencesRepository.create).toHaveBeenCalledWith({
+      userId: 'u-1',
+    });
     expect(preferencesRepository.save).toHaveBeenCalled();
   });
 
@@ -136,6 +143,10 @@ describe('AuthService', () => {
     const savedUser = { id: 'u-2', stellar_address: address } as User;
     usersRepository.findOneBy.mockResolvedValue(savedUser);
     usersRepository.save.mockResolvedValue(savedUser);
+    preferencesRepository.findOneBy.mockResolvedValue({
+      id: 'prefs-1',
+      userId: savedUser.id,
+    } as UserPreferences);
 
     const result = await service.verifyChallenge(address, 'signed-hex');
 
@@ -147,6 +158,23 @@ describe('AuthService', () => {
       sub: 'u-2',
       stellar_address: address,
     });
+  });
+
+  it('verifySignature() does not duplicate existing preferences', async () => {
+    service.generateChallenge(address);
+    jest.spyOn(service, 'verifyStellarSignature').mockReturnValue(true);
+
+    const savedUser = { id: 'u-3', stellar_address: address } as User;
+    usersRepository.findOneBy.mockResolvedValue(savedUser);
+    usersRepository.save.mockResolvedValue(savedUser);
+    preferencesRepository.findOneBy.mockResolvedValue({
+      id: 'prefs-1',
+      userId: savedUser.id,
+    } as UserPreferences);
+
+    await service.verifySignature(address, 'signed-hex');
+
+    expect(preferencesRepository.save).not.toHaveBeenCalled();
   });
 
   it('removeChallenge() invalidates challenge', () => {
