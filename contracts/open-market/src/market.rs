@@ -451,10 +451,10 @@ pub fn close_market(env: &Env, caller: Address, market_id: u64) -> Result<(), In
         return Err(InsightArenaError::MarketAlreadyResolved);
     }
 
-    // ── Guard 4: caller must be admin or oracle ────────────────────────────────
+    // ── Guard 4: caller must be creator, admin, or oracle ──────────────────────
     caller.require_auth();
     let cfg = config::get_config(env)?;
-    if caller != cfg.admin && caller != cfg.oracle_address {
+    if caller != market.creator && caller != cfg.admin && caller != cfg.oracle_address {
         return Err(InsightArenaError::Unauthorized);
     }
 

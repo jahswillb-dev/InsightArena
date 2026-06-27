@@ -63,6 +63,10 @@ export class Market {
   @IsString()
   resolved_outcome: string;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  @IsOptional()
+  resolved_at: Date | null;
+
   @Column({ default: true })
   @IsBoolean()
   is_public: boolean;

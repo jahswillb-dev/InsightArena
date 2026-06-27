@@ -252,6 +252,11 @@ impl InsightArenaContract {
         dispute::resolve_dispute(env, admin, market_id, uphold)
     }
 
+    /// Enumerate all markets that currently have an active dispute.
+    pub fn list_active_disputes(env: Env) -> Vec<u64> {
+        dispute::list_active_disputes(&env)
+    }
+
     // ── Prediction ────────────────────────────────────────────────────────────
 
     /// Submit a prediction for an open market by staking XLM on a chosen outcome.

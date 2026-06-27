@@ -380,6 +380,58 @@ describe('NotificationGeneratorService', () => {
     });
   });
 
+  describe('queue flushing', () => {
+    it('should call save once with all 30 items when fewer than BATCH_SIZE are queued', async () => {
+      const saveSpy = jest
+        .spyOn(notificationsRepository, 'save')
+        .mockResolvedValue({} as any);
+      jest.spyOn(notificationsRepository, 'create').mockReturnValue({} as any);
+
+      const notifications = Array.from({ length: 30 }, (_, i) => ({
+        userAddress: `GUSER${i}`,
+        type: NotificationType.EventCreated,
+        title: 'Test',
+        message: 'Test message',
+      }));
+
+      await service['queueBatchNotifications'](notifications);
+      await service.flushQueue();
+
+      expect(saveSpy).toHaveBeenCalledTimes(1);
+      expect(saveSpy.mock.calls[0][0]).toHaveLength(30);
+    });
+
+    it('should call save three times with batch sizes of 50, 50, and 10 for 110 items', async () => {
+      const saveSpy = jest
+        .spyOn(notificationsRepository, 'save')
+        .mockResolvedValue({} as any);
+      jest.spyOn(notificationsRepository, 'create').mockReturnValue({} as any);
+
+      const notifications = Array.from({ length: 110 }, (_, i) => ({
+        userAddress: `GUSER${i}`,
+        type: NotificationType.EventCreated,
+        title: 'Test',
+        message: 'Test message',
+      }));
+
+      await service['queueBatchNotifications'](notifications);
+      await service.flushQueue();
+
+      expect(saveSpy).toHaveBeenCalledTimes(3);
+      expect(saveSpy.mock.calls[0][0]).toHaveLength(50);
+      expect(saveSpy.mock.calls[1][0]).toHaveLength(50);
+      expect(saveSpy.mock.calls[2][0]).toHaveLength(10);
+    });
+
+    it('should not call save when the queue is empty', async () => {
+      const saveSpy = jest.spyOn(notificationsRepository, 'save');
+
+      await service.flushQueue();
+
+      expect(saveSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe('flushQueue', () => {
     it('should flush all queued notifications', async () => {
       // Queue some notifications first

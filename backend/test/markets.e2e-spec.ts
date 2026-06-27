@@ -59,7 +59,10 @@ describe('Markets (e2e)', () => {
     is_public: true,
     is_resolved: false,
     resolved_outcome: null as any, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+    resolved_at: null,
     is_cancelled: false,
+    is_featured: false,
+    featured_at: null,
     total_pool_stroops: '0',
     participant_count: 0,
     created_at: new Date('2024-01-01'),

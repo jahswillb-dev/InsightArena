@@ -295,3 +295,73 @@ fn test_multiple_invite_codes_per_market() {
     assert!(allowlist.iter().any(|a| a == invitee1));
     assert!(allowlist.iter().any(|a| a == invitee2));
 }
+
+#[test]
+fn test_generate_invite_code_rejects_public_market() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let oracle = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let xlm_token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+
+    let contract_id = env.register(InsightArenaContract, ());
+    let client = InsightArenaContractClient::new(&env, &contract_id);
+    client.initialize(&admin, &oracle, &200, &xlm_token);
+
+    // Create a PUBLIC market
+    let params = CreateMarketParams {
+        title: String::from_str(&env, "Public Market"),
+        description: String::from_str(&env, "Open to all"),
+        category: Symbol::new(&env, "Sports"),
+        outcomes: vec![&env, Symbol::new(&env, "TeamA"), Symbol::new(&env, "TeamB")],
+        end_time: 200,
+        resolution_time: 300,
+        dispute_window: 86_400,
+        creator_fee_bps: 100,
+        min_stake: 10_000_000,
+        max_stake: 100_000_000,
+        is_public: true,
+    };
+    let market_id = client.create_market(&creator, &params);
+
+    let result = client.try_generate_invite_code(&creator, &market_id, &10, &3600);
+    assert!(matches!(result, Err(Ok(InsightArenaError::InvalidInput))));
+}
+
+#[test]
+fn test_generate_invite_code_succeeds_for_private_market() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let oracle = Address::generate(&env);
+    let creator = Address::generate(&env);
+    let xlm_token = env
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
+
+    let contract_id = env.register(InsightArenaContract, ());
+    let client = InsightArenaContractClient::new(&env, &contract_id);
+    client.initialize(&admin, &oracle, &200, &xlm_token);
+
+    // Create a PRIVATE market
+    let params = CreateMarketParams {
+        title: String::from_str(&env, "Private Market"),
+        description: String::from_str(&env, "Invite only"),
+        category: Symbol::new(&env, "Sports"),
+        outcomes: vec![&env, Symbol::new(&env, "TeamA"), Symbol::new(&env, "TeamB")],
+        end_time: 200,
+        resolution_time: 300,
+        dispute_window: 86_400,
+        creator_fee_bps: 100,
+        min_stake: 10_000_000,
+        max_stake: 100_000_000,
+        is_public: false,
+    };
+    let market_id = client.create_market(&creator, &params);
+
+    let result = client.try_generate_invite_code(&creator, &market_id, &10, &3600);
+    assert!(result.is_ok());
+}

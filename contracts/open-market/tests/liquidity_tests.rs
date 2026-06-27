@@ -1522,3 +1522,62 @@ fn test_pool_volume_accumulates_across_swaps() {
     // Volume should accumulate both swaps
     assert_eq!(volume_after_swap2, swap1 + swap2);
 }
+
+#[test]
+fn test_get_outcome_price_reflects_post_swap_reserves() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, _oracle, xlm_token) = deploy_with_token(&env);
+
+    let provider = Address::generate(&env);
+    let trader = Address::generate(&env);
+
+    let sa = StellarAssetClient::new(&env, &xlm_token);
+    let token = TokenClient::new(&env, &xlm_token);
+
+    let market_id = client.create_market(&_admin, &lp_market_params(&env));
+
+    // Add liquidity so that initial reserves are 500_000 each (out of 1_000_000 total)
+    // For a 2-outcome market with equal first deposit, reserves are split evenly
+    let liquidity = 1_000_000_i128;
+    sa.mint(&provider, &liquidity);
+    token.approve(&provider, &client.address, &liquidity, &9999);
+    client.add_liquidity(&provider, &market_id, &liquidity);
+
+    // Verify initial prices are equal (50/50)
+    let price_yes_before = client.get_outcome_price(&market_id, &symbol_short!("yes"));
+    let price_no_before = client.get_outcome_price(&market_id, &symbol_short!("no"));
+    assert_eq!(price_yes_before, price_no_before);
+    assert!(price_yes_before > 0);
+
+    let total_before = price_yes_before + price_no_before;
+
+    // Perform a large swap: buy outcome A (yes), selling from B (no)
+    // This sends XLM from the trader into the contract, increasing the YES reserve
+    let swap_amount = 200_000_i128;
+    sa.mint(&trader, &swap_amount);
+    token.approve(&trader, &client.address, &swap_amount, &9999);
+    let amount_out = client.swap_outcome(
+        &trader,
+        &market_id,
+        &symbol_short!("yes"),
+        &symbol_short!("no"),
+        &swap_amount,
+        &0_i128,
+    );
+
+    // Get updated prices
+    let price_yes_after = client.get_outcome_price(&market_id, &symbol_short!("yes"));
+    let price_no_after = client.get_outcome_price(&market_id, &symbol_short!("no"));
+
+    // Prices should move in correct direction:
+    // - YES reserve increased (more YES in pool), so YES price goes UP
+    // - NO reserve decreased (NO taken from pool), so NO price goes DOWN
+    assert!(price_yes_after > price_yes_before, "YES reserve should increase after selling YES");
+    assert!(price_no_after < price_no_before, "NO reserve should decrease after buying NO");
+
+    // Total reserves change by swap_amount (added) minus amount_out (removed)
+    let total_after = price_yes_after + price_no_after;
+    assert_eq!(total_after, total_before + swap_amount - amount_out,
+        "Total reserves should reflect net change from swap");
+}

@@ -52,6 +52,8 @@ pub enum DataKey {
     EscrowLock,
     /// Keyed by market_id. Stores an active dispute (if any) for that market.
     Dispute(u64),
+    /// Singleton list of market IDs that currently have an active dispute.
+    ActiveDisputeList,
     /// Singleton. Cumulative platform stake volume (stroops) for analytics.
     PlatformVolume,
     /// Keyed by creator address. Aggregated creator reputation statistics.

@@ -29,6 +29,9 @@ pub fn generate_invite_code(
     if market.creator != creator {
         return Err(InsightArenaError::Unauthorized);
     }
+    if market.is_public {
+        return Err(InsightArenaError::InvalidInput);
+    }
 
     // 2. Validate usage constraints
     if max_uses < 1 {

@@ -37,7 +37,7 @@ describe('DisputesService', () => {
     id: 'market-123',
     on_chain_market_id: 'chain-market-123',
     is_resolved: true,
-    resolution_time: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+    resolved_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // resolved 5 days ago
   } as Market;
 
   const mockDispute: Dispute = {
@@ -153,12 +153,44 @@ describe('DisputesService', () => {
     it('should throw BadRequestException if dispute window has passed', async () => {
       const oldMarket = {
         ...mockMarket,
-        resolution_time: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), // 10 days ago
+        resolved_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), // resolved 10 days ago
       };
       jest.spyOn(marketsRepository, 'findOne').mockResolvedValue(oldMarket);
 
       await expect(service.create(createDisputeDto, mockUser)).rejects.toThrow(
         BadRequestException,
+      );
+    });
+
+    it('should succeed when market was resolved 1 day ago (within 7-day window)', async () => {
+      const recentMarket = {
+        ...mockMarket,
+        resolved_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // resolved 1 day ago
+      };
+      jest.spyOn(marketsRepository, 'findOne').mockResolvedValue(recentMarket);
+      jest.spyOn(disputesRepository, 'findOne').mockResolvedValue(null);
+      jest.spyOn(disputesRepository, 'create').mockReturnValue(mockDispute);
+      jest.spyOn(disputesRepository, 'save').mockResolvedValue(mockDispute);
+      jest.spyOn(service, 'findOne').mockResolvedValue(mockDispute);
+      jest.spyOn(sorobanService, 'raiseDispute').mockResolvedValue({
+        dispute_id: 'chain-dispute-123',
+        tx_hash: 'tx-hash-123',
+      });
+
+      const result = await service.create(createDisputeDto, mockUser);
+
+      expect(result).toEqual(mockDispute);
+    });
+
+    it('should throw BadRequestException when market was resolved 8 days ago', async () => {
+      const staleMarket = {
+        ...mockMarket,
+        resolved_at: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), // resolved 8 days ago
+      };
+      jest.spyOn(marketsRepository, 'findOne').mockResolvedValue(staleMarket);
+
+      await expect(service.create(createDisputeDto, mockUser)).rejects.toThrow(
+        new BadRequestException('Dispute window has passed'),
       );
     });
 
@@ -380,7 +412,7 @@ describe('DisputesService', () => {
     it('should return false if dispute window has passed', async () => {
       const oldMarket = {
         ...mockMarket,
-        resolution_time: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), // 10 days ago
+        resolved_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), // resolved 10 days ago
       };
       jest.spyOn(marketsRepository, 'findOne').mockResolvedValue(oldMarket);
 

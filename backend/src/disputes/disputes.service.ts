@@ -55,8 +55,8 @@ export class DisputesService {
       );
     }
 
-    // Check if dispute window has passed (7 days after resolution)
-    const disputeWindowEnd = new Date(market.resolution_time);
+    // Check if dispute window has passed (7 days after actual resolution)
+    const disputeWindowEnd = new Date(market.resolved_at!);
     disputeWindowEnd.setDate(disputeWindowEnd.getDate() + 7);
 
     if (new Date() > disputeWindowEnd) {
@@ -235,7 +235,7 @@ export class DisputesService {
       return false;
     }
 
-    const disputeWindowEnd = new Date(market.resolution_time);
+    const disputeWindowEnd = new Date(market.resolved_at!);
     disputeWindowEnd.setDate(disputeWindowEnd.getDate() + 7);
 
     return new Date() <= disputeWindowEnd;

@@ -547,3 +547,44 @@ fn test_list_user_markets_ttl_extended_on_write() {
 
     assert!(ttl >= LEDGER_BUMP_MARKET - 14_400);
 }
+
+#[test]
+fn test_submit_prediction_on_cancelled_market_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    // 1. Unpack the authorized manager address from the deployment helper tuple
+    let (client, xlm_token, manager, _) = deploy(&env);
+
+    let user_alpha = Address::generate(&env);
+    let user_beta = Address::generate(&env);
+    let user_gamma = Address::generate(&env);
+    let stake = 20_000_000_i128; // Meets the min_stake requirement
+
+    // 2. Pass the authorized manager to create the market
+    let market_id = client.create_market(&manager, &default_params(&env)); 
+
+    // 3. Fund your test users using the token returned by deploy()
+    fund(&env, &xlm_token, &user_alpha, stake);
+    fund(&env, &xlm_token, &user_beta, stake);
+
+    let outcome_side = symbol_short!("yes");
+    
+    // 4. User Alpha makes a valid prediction BEFORE cancellation
+    client.submit_prediction(&user_alpha, &market_id, &outcome_side, &stake);
+    assert!(client.has_predicted(&market_id, &user_alpha));
+
+    // 5. Cancel the market using the authorized manager handle
+    client.cancel_market(&manager, &market_id);
+
+    // 6. Submitting a prediction after cancellation must fail
+    let result = client.try_submit_prediction(&user_beta, &market_id, &outcome_side, &stake);
+    assert_eq!(
+        result,
+        Err(Ok(InsightArenaError::MarketAlreadyCancelled)) 
+    );
+
+    // 7. Verify post-cancellation status checks remain accurate
+    assert!(client.has_predicted(&market_id, &user_alpha));
+    assert!(!client.has_predicted(&market_id, &user_gamma));
+}

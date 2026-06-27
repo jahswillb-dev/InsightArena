@@ -342,6 +342,7 @@ export class MarketsService {
 
     market.is_resolved = true;
     market.resolved_outcome = outcome;
+    market.resolved_at = new Date();
     const saved = await this.marketsRepository.save(market);
 
     await this.webhookDispatcher.emit('market.resolved', {

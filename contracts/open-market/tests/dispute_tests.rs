@@ -296,3 +296,103 @@ fn test_raise_dispute_on_resolved_market_success_within_window() {
     // 3. Assert success
     assert!(result.is_ok());
 }
+
+#[test]
+fn test_list_active_disputes_empty_initially() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, _oracle, _xlm_token) = deploy(&env);
+    let list = client.list_active_disputes();
+    assert_eq!(list.len(), 0);
+}
+
+#[test]
+fn test_list_active_disputes_includes_raised_disputes() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, oracle, xlm_token) = deploy(&env);
+    let creator = Address::generate(&env);
+    let disputer = Address::generate(&env);
+
+    // Create two markets
+    let id1 = client.create_market(&creator, &market_params(&env));
+    let id2 = client.create_market(&creator, &market_params(&env));
+
+    // Advance and resolve both
+    env.ledger().set_timestamp(env.ledger().timestamp() + 20);
+    client.resolve_market(&oracle, &id1, &symbol_short!("yes"));
+    client.resolve_market(&oracle, &id2, &symbol_short!("yes"));
+
+    let bond = 15_000_000_i128;
+    StellarAssetClient::new(&env, &xlm_token).mint(&disputer, &(bond * 2));
+    TokenClient::new(&env, &xlm_token).approve(&disputer, &client.address, &(bond * 2), &9999);
+
+    // Raise dispute on first market
+    client.raise_dispute(&disputer, &id1, &bond);
+    let list = client.list_active_disputes();
+    assert_eq!(list.len(), 1);
+    assert!(list.contains(&id1));
+
+    // Raise dispute on second market
+    client.raise_dispute(&disputer, &id2, &bond);
+    let list = client.list_active_disputes();
+    assert_eq!(list.len(), 2);
+    assert!(list.contains(&id1));
+    assert!(list.contains(&id2));
+}
+
+#[test]
+fn test_list_active_disputes_removes_after_resolve() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, oracle, xlm_token) = deploy(&env);
+    let creator = Address::generate(&env);
+    let disputer = Address::generate(&env);
+
+    let id = client.create_market(&creator, &market_params(&env));
+    env.ledger().set_timestamp(env.ledger().timestamp() + 20);
+    client.resolve_market(&oracle, &id, &symbol_short!("yes"));
+
+    let bond = 15_000_000_i128;
+    StellarAssetClient::new(&env, &xlm_token).mint(&disputer, &bond);
+    TokenClient::new(&env, &xlm_token).approve(&disputer, &client.address, &bond, &9999);
+
+    client.raise_dispute(&disputer, &id, &bond);
+    assert_eq!(client.list_active_disputes().len(), 1);
+
+    // Resolve the dispute (uphold)
+    client.resolve_dispute(&admin, &id, &true);
+    assert_eq!(client.list_active_disputes().len(), 0);
+}
+
+#[test]
+fn test_list_active_disputes_maintains_insertion_order() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, oracle, xlm_token) = deploy(&env);
+    let creator = Address::generate(&env);
+    let disputer = Address::generate(&env);
+
+    let id1 = client.create_market(&creator, &market_params(&env));
+    let id2 = client.create_market(&creator, &market_params(&env));
+    let id3 = client.create_market(&creator, &market_params(&env));
+
+    env.ledger().set_timestamp(env.ledger().timestamp() + 20);
+    client.resolve_market(&oracle, &id1, &symbol_short!("yes"));
+    client.resolve_market(&oracle, &id2, &symbol_short!("yes"));
+    client.resolve_market(&oracle, &id3, &symbol_short!("yes"));
+
+    let bond = 15_000_000_i128;
+    StellarAssetClient::new(&env, &xlm_token).mint(&disputer, &(bond * 3));
+    TokenClient::new(&env, &xlm_token).approve(&disputer, &client.address, &(bond * 3), &9999);
+
+    client.raise_dispute(&disputer, &id1, &bond);
+    client.raise_dispute(&disputer, &id2, &bond);
+    client.raise_dispute(&disputer, &id3, &bond);
+
+    let list = client.list_active_disputes();
+    assert_eq!(list.len(), 3);
+    assert_eq!(list.get(0), Some(id1));
+    assert_eq!(list.get(1), Some(id2));
+    assert_eq!(list.get(2), Some(id3));
+}
