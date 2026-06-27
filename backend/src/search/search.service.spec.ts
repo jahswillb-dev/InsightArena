@@ -108,6 +108,37 @@ describe('SearchService', () => {
   });
 
   describe('search()', () => {
+    it('short-circuits on empty string without querying any repository', async () => {
+      const result = await service.search({
+        query: '',
+        type: SearchType.All,
+        page: 1,
+        limit: 20,
+      });
+
+      expect(result.total).toBe(0);
+      expect(result.markets).toEqual([]);
+      expect(result.users).toEqual([]);
+      expect(result.competitions).toEqual([]);
+      expect(marketQb.getManyAndCount).not.toHaveBeenCalled();
+      expect(userQb.getManyAndCount).not.toHaveBeenCalled();
+      expect(competitionQb.getManyAndCount).not.toHaveBeenCalled();
+    });
+
+    it('short-circuits on single-character query without querying any repository', async () => {
+      const result = await service.search({
+        query: 'a',
+        type: SearchType.All,
+        page: 1,
+        limit: 20,
+      });
+
+      expect(result.total).toBe(0);
+      expect(marketQb.getManyAndCount).not.toHaveBeenCalled();
+      expect(userQb.getManyAndCount).not.toHaveBeenCalled();
+      expect(competitionQb.getManyAndCount).not.toHaveBeenCalled();
+    });
+
     it('returns all three entity types for SearchType.All', async () => {
       const dto: GlobalSearchDto = {
         query: 'bitcoin',

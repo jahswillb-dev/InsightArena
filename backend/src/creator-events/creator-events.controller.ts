@@ -146,6 +146,20 @@ export class CreatorEventsController {
   }
 
   /**
+   * GET /api/creator-events/:id/matches/upcoming
+   * #1131 — Fetch only future, unresolved matches ordered by match_time ASC.
+   */
+  @Get(':id/matches/upcoming')
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(60)
+  @ApiOperation({ summary: 'Get upcoming (unresolved, future) matches for an event' })
+  @ApiResponse({ status: 200, description: 'Upcoming matches ordered by match time' })
+  @ApiResponse({ status: 404, description: 'Event not found' })
+  getUpcomingMatches(@Param('id') id: string) {
+    return this.creatorEventsService.getUpcomingMatches(id);
+  }
+
+  /**
    * GET /api/creator-events/:id/stats
    * #727 — Fetch detailed statistics for a specific event.
    */

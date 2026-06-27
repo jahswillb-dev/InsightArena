@@ -265,12 +265,26 @@ export class CreatorEventsService {
     return config;
   }
 
+  async getUpcomingMatches(eventId: string): Promise<Match[]> {
+    const event = await this.creatorEventRepository.findOne({
+      where: { on_chain_event_id: Number(eventId) as unknown as number },
+    });
+    if (!event) {
+      throw new NotFoundException(`Event ${eventId} not found`);
+    }
+    return this.matchRepository
+      .createQueryBuilder('match')
+      .where('match.event_id = :eventId', { eventId: event.id })
+      .andWhere('match.match_time > :now', { now: new Date() })
+      .andWhere('match.result_submitted = false')
+      .orderBy('match.match_time', 'ASC')
+      .getMany();
+  }
+
   async getEventMatches(
     eventId: string,
     query: ListMatchesQueryDto,
-  ): Promise<
-    Array<ContractMatch & { predictionCount: number; userPrediction?: string }>
-  > {
+  ): Promise<Array<ContractMatch & { predictionCount: number; userPrediction?: string }>> {
     const event = await this.contractService.getEvent(eventId);
     if (!event) {
       throw new NotFoundException(`Event ${eventId} not found`);

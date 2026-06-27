@@ -31,6 +31,20 @@ export class SearchService {
     const searchType = dto.type ?? SearchType.All;
     const query = dto.query;
 
+    if (!query || query.trim().length < 2) {
+      return {
+        markets: [],
+        users: [],
+        competitions: [],
+        total: 0,
+        total_markets: 0,
+        total_users: 0,
+        total_competitions: 0,
+        page,
+        limit,
+      };
+    }
+
     const [
       [markets, total_markets],
       [users, total_users],

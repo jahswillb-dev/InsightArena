@@ -1,5 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
+import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
+import { RolesGuard } from '../common/guards/roles.guard';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -191,5 +194,75 @@ describe('AdminController', () => {
         'admin-1',
       );
     });
+  });
+});
+
+describe('AdminController — RolesGuard enforcement', () => {
+  let guard: RolesGuard;
+  let reflector: Reflector;
+  let module: TestingModule;
+
+  beforeEach(async () => {
+    module = await Test.createTestingModule({
+      controllers: [AdminController],
+      providers: [
+        Reflector,
+        RolesGuard,
+        {
+          provide: AdminService,
+          useValue: {
+            getStats: jest.fn(),
+            listUsers: jest.fn(),
+            banUser: jest.fn(),
+          },
+        },
+        {
+          provide: CACHE_MANAGER,
+          useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn() },
+        },
+      ],
+    }).compile();
+
+    reflector = module.get(Reflector);
+    guard = new RolesGuard(reflector);
+  });
+
+  function makeCtx(role: string, handlerName: string): ExecutionContext {
+    const controller = module.get(AdminController);
+    return {
+      switchToHttp: () => ({
+        getRequest: () => ({ user: { role } }),
+      }),
+      getHandler: () =>
+        Object.getOwnPropertyDescriptor(
+          Object.getPrototypeOf(controller),
+          handlerName,
+        )?.value,
+      getClass: () => AdminController,
+    } as unknown as ExecutionContext;
+  }
+
+  it('GET /admin/dashboard/stats — denies role=user', () => {
+    expect(guard.canActivate(makeCtx('user', 'getDashboardStats'))).toBe(false);
+  });
+
+  it('GET /admin/dashboard/stats — allows role=admin', () => {
+    expect(guard.canActivate(makeCtx('admin', 'getDashboardStats'))).toBe(true);
+  });
+
+  it('GET /admin/users — denies role=user', () => {
+    expect(guard.canActivate(makeCtx('user', 'listUsers'))).toBe(false);
+  });
+
+  it('GET /admin/users — allows role=admin', () => {
+    expect(guard.canActivate(makeCtx('admin', 'listUsers'))).toBe(true);
+  });
+
+  it('PATCH /admin/users/:id/ban — denies role=user', () => {
+    expect(guard.canActivate(makeCtx('user', 'banUser'))).toBe(false);
+  });
+
+  it('PATCH /admin/users/:id/ban — allows role=admin', () => {
+    expect(guard.canActivate(makeCtx('admin', 'banUser'))).toBe(true);
   });
 });
