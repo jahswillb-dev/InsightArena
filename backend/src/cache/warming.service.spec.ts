@@ -84,9 +84,30 @@ describe('CacheWarmingService', () => {
       { data: [], total: 0 },
       300000,
     );
+
+    expect(cacheManager.set).toHaveBeenCalledWith(
+      CACHE_WARMING_KEYS.trendingEvents,
+      {
+        data: [
+          { id: 'popular-1' },
+          { id: 'popular-2' },
+        ],
+        total: 2,
+      },
+      300000,
+    );
+
+    // At least one popular market detail key
     expect(cacheManager.set).toHaveBeenCalledWith(
       CACHE_WARMING_KEYS.popularEventDetail('popular-1'),
       { id: 'popular-1' },
+      300000,
+    );
+
+    // Platform statistics (if applicable)
+    expect(cacheManager.set).toHaveBeenCalledWith(
+      CACHE_WARMING_KEYS.platformStatistics,
+      { categories: [] },
       300000,
     );
     expect(result.failed).toEqual([]);
