@@ -122,6 +122,13 @@ describe('MarketsService', () => {
           provide: WebhookDispatcherService,
           useValue: { emit: jest.fn() },
         },
+        {
+          provide: 'CACHE_MANAGER',
+          useValue: {
+            del: jest.fn(),
+            set: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
