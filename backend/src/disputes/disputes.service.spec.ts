@@ -196,14 +196,19 @@ describe('DisputesService', () => {
 
     it('should throw ConflictException if dispute already exists regardless of status', async () => {
       jest.spyOn(marketsRepository, 'findOne').mockResolvedValue(mockMarket);
-      
-      const resolvedDispute = { ...mockDispute, status: DisputeStatus.RESOLVED };
-      jest.spyOn(disputesRepository, 'findOne').mockResolvedValue(resolvedDispute);
+
+      const resolvedDispute = {
+        ...mockDispute,
+        status: DisputeStatus.RESOLVED,
+      };
+      jest
+        .spyOn(disputesRepository, 'findOne')
+        .mockResolvedValue(resolvedDispute);
 
       await expect(service.create(createDisputeDto, mockUser)).rejects.toThrow(
         ConflictException,
       );
-      
+
       expect(disputesRepository.findOne).toHaveBeenCalledWith({
         where: { marketId: 'market-123' },
       });
@@ -317,7 +322,9 @@ describe('DisputesService', () => {
     it('should return paginated disputes for a user', async () => {
       const disputes = [mockDispute];
       const mockFindAndCount: [Dispute[], number] = [disputes, 1];
-      jest.spyOn(disputesRepository, 'findAndCount').mockResolvedValue(mockFindAndCount);
+      jest
+        .spyOn(disputesRepository, 'findAndCount')
+        .mockResolvedValue(mockFindAndCount);
 
       const result = await service.findMyDisputes('user-123', 1, 20);
 

@@ -201,7 +201,7 @@ describe('CreatorEventsService searchEvents', () => {
     expect(queryBuilder.andWhere).toHaveBeenCalledWith(expect.any(Object)); // Brackets
 
     jest.clearAllMocks();
-    
+
     await service.searchEvents({
       q: 'league',
       status: CreatorEventSearchStatus.Upcoming,
@@ -238,7 +238,7 @@ describe('CreatorEventsService getUpcomingMatches', () => {
   let creatorEventRepository: { findOne: jest.Mock };
 
   const futureDate = new Date(Date.now() + 86_400_000); // +1 day
-  const pastDate = new Date(Date.now() - 86_400_000);  // -1 day
+  const pastDate = new Date(Date.now() - 86_400_000); // -1 day
 
   const mockEvent = { id: 'event-uuid', on_chain_event_id: 42 } as any;
 
@@ -250,18 +250,28 @@ describe('CreatorEventsService getUpcomingMatches', () => {
       getMany: jest.fn(),
     };
 
-    matchRepository = { createQueryBuilder: jest.fn().mockReturnValue(matchQb) };
-    creatorEventRepository = { findOne: jest.fn().mockResolvedValue(mockEvent) };
+    matchRepository = {
+      createQueryBuilder: jest.fn().mockReturnValue(matchQb),
+    };
+    creatorEventRepository = {
+      findOne: jest.fn().mockResolvedValue(mockEvent),
+    };
 
     const module = await Test.createTestingModule({
       providers: [
         CreatorEventsService,
         { provide: ContractService, useValue: {} },
-        { provide: getRepositoryToken(CreatorEvent), useValue: creatorEventRepository },
+        {
+          provide: getRepositoryToken(CreatorEvent),
+          useValue: creatorEventRepository,
+        },
         { provide: getRepositoryToken(Match), useValue: matchRepository },
         { provide: getRepositoryToken(MatchPrediction), useValue: {} },
         { provide: getRepositoryToken(User), useValue: {} },
-        { provide: getRepositoryToken(CreatorEventLeaderboardEntry), useValue: {} },
+        {
+          provide: getRepositoryToken(CreatorEventLeaderboardEntry),
+          useValue: {},
+        },
         { provide: getRepositoryToken(CreatorEventPayout), useValue: {} },
       ],
     }).compile();
@@ -272,7 +282,11 @@ describe('CreatorEventsService getUpcomingMatches', () => {
   it('returns only future unresolved matches ordered by match_time ASC', async () => {
     const upcoming = [
       { id: 'm1', match_time: futureDate, result_submitted: false },
-      { id: 'm2', match_time: new Date(futureDate.getTime() + 3600_000), result_submitted: false },
+      {
+        id: 'm2',
+        match_time: new Date(futureDate.getTime() + 3600_000),
+        result_submitted: false,
+      },
     ] as any[];
 
     const qb = matchRepository.createQueryBuilder();
@@ -281,8 +295,12 @@ describe('CreatorEventsService getUpcomingMatches', () => {
     const result = await service.getUpcomingMatches('42');
 
     expect(result).toEqual(upcoming);
-    expect(qb.where).toHaveBeenCalledWith('match.event_id = :eventId', { eventId: mockEvent.id });
-    expect(qb.andWhere).toHaveBeenCalledWith('match.match_time > :now', { now: expect.any(Date) });
+    expect(qb.where).toHaveBeenCalledWith('match.event_id = :eventId', {
+      eventId: mockEvent.id,
+    });
+    expect(qb.andWhere).toHaveBeenCalledWith('match.match_time > :now', {
+      now: expect.any(Date),
+    });
     expect(qb.andWhere).toHaveBeenCalledWith('match.result_submitted = false');
     expect(qb.orderBy).toHaveBeenCalledWith('match.match_time', 'ASC');
   });
@@ -298,6 +316,8 @@ describe('CreatorEventsService getUpcomingMatches', () => {
   it('throws NotFoundException when event does not exist', async () => {
     creatorEventRepository.findOne.mockResolvedValue(null);
 
-    await expect(service.getUpcomingMatches('999')).rejects.toThrow(NotFoundException);
+    await expect(service.getUpcomingMatches('999')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });

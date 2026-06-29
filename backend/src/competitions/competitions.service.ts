@@ -245,7 +245,8 @@ export class CompetitionsService {
     }
 
     if (dto.title !== undefined) competition.title = dto.title;
-    if (dto.description !== undefined) competition.description = dto.description;
+    if (dto.description !== undefined)
+      competition.description = dto.description;
     if (dto.prize_pool_stroops !== undefined)
       competition.prize_pool_stroops = dto.prize_pool_stroops;
     if (dto.max_participants !== undefined)

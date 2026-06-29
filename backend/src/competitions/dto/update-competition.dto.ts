@@ -24,12 +24,18 @@ export class UpdateCompetitionDto {
   @MaxLength(2000)
   description?: string;
 
-  @ApiPropertyOptional({ description: 'Prize pool in stroops', example: '10000000000' })
+  @ApiPropertyOptional({
+    description: 'Prize pool in stroops',
+    example: '10000000000',
+  })
   @IsOptional()
   @IsNumberString()
   prize_pool_stroops?: string;
 
-  @ApiPropertyOptional({ description: 'Max number of participants', example: 200 })
+  @ApiPropertyOptional({
+    description: 'Max number of participants',
+    example: 200,
+  })
   @IsOptional()
   @IsInt()
   @Min(2)

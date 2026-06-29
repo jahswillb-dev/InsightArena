@@ -94,7 +94,6 @@ describe('EventsGateway', () => {
     });
   });
 
-
   describe('handleDisconnect', () => {
     it('removes connection tracking on disconnect', async () => {
       jwtService.verify.mockReturnValue({ sub: 'GABC123' });

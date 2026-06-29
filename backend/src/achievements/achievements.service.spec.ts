@@ -193,11 +193,15 @@ describe('AchievementsService', () => {
 
     beforeEach(() => {
       usersRepository.findOne.mockResolvedValue(qualifyingUser);
-      achievementsRepository.findOne.mockResolvedValue(firstPredictionAchievement);
+      achievementsRepository.findOne.mockResolvedValue(
+        firstPredictionAchievement,
+      );
       // First invocation: no existing record yet → save triggers
       userAchievementsRepository.findOne.mockResolvedValueOnce(null);
       // Second invocation: record already exists → save is skipped
-      userAchievementsRepository.findOne.mockResolvedValue(existingUserAchievement);
+      userAchievementsRepository.findOne.mockResolvedValue(
+        existingUserAchievement,
+      );
     });
 
     it('should save FIRST_PREDICTION exactly once when checkAndUnlockAchievements is called twice', async () => {

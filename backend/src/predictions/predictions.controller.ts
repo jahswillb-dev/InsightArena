@@ -53,11 +53,15 @@ export class PredictionsController {
     description: 'Prediction submitted',
     type: Prediction,
   })
-  @ApiResponse({ status: 400, description: 'Market closed, invalid outcome, or missing Idempotency-Key' })
+  @ApiResponse({
+    status: 400,
+    description: 'Market closed, invalid outcome, or missing Idempotency-Key',
+  })
   @ApiResponse({ status: 404, description: 'Market not found' })
   @ApiResponse({
     status: 409,
-    description: 'Duplicate prediction on this market, or a request with the same Idempotency-Key is already in progress',
+    description:
+      'Duplicate prediction on this market, or a request with the same Idempotency-Key is already in progress',
   })
   @ApiResponse({
     status: 422,

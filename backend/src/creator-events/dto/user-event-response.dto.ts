@@ -46,10 +46,15 @@ export class UserEventResponseDto {
   @ApiPropertyOptional({ description: 'Campaign banner URL' })
   bannerUrl?: string | null;
 
-  @ApiPropertyOptional({ description: 'Whether the campaign has been finalized' })
+  @ApiPropertyOptional({
+    description: 'Whether the campaign has been finalized',
+  })
   isFinalized?: boolean;
 
-  @ApiPropertyOptional({ type: [Number], description: 'Reward split percentages' })
+  @ApiPropertyOptional({
+    type: [Number],
+    description: 'Reward split percentages',
+  })
   rewardDistribution?: number[];
 
   @ApiPropertyOptional({

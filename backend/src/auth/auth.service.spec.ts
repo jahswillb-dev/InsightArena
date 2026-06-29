@@ -82,12 +82,12 @@ describe('AuthService', () => {
     usersRepository.create.mockReturnValue(savedUser);
     usersRepository.save.mockResolvedValue(savedUser);
     preferencesRepository.findOneBy.mockResolvedValue(null);
-    preferencesRepository.create.mockReturnValue(
-      { userId: savedUser.id } as UserPreferences,
-    );
-    preferencesRepository.save.mockResolvedValue(
-      { userId: savedUser.id } as UserPreferences,
-    );
+    preferencesRepository.create.mockReturnValue({
+      userId: savedUser.id,
+    } as UserPreferences);
+    preferencesRepository.save.mockResolvedValue({
+      userId: savedUser.id,
+    } as UserPreferences);
 
     const user = await service.verifySignature(address, 'signed-hex');
 

@@ -66,8 +66,7 @@ export class EventsGateway
     // In Jest/unit test runs we don't want to keep background intervals alive,
     // which can cause test processes to hang until CI timeout.
     const isTestRun =
-      process.env.NODE_ENV === 'test' ||
-      Boolean(process.env.JEST_WORKER_ID);
+      process.env.NODE_ENV === 'test' || Boolean(process.env.JEST_WORKER_ID);
 
     if (!isTestRun) {
       const heartbeat = setInterval(() => {

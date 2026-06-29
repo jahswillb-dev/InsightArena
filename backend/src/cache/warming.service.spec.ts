@@ -88,10 +88,7 @@ describe('CacheWarmingService', () => {
     expect(cacheManager.set).toHaveBeenCalledWith(
       CACHE_WARMING_KEYS.trendingEvents,
       {
-        data: [
-          { id: 'popular-1' },
-          { id: 'popular-2' },
-        ],
+        data: [{ id: 'popular-1' }, { id: 'popular-2' }],
         total: 2,
       },
       300000,

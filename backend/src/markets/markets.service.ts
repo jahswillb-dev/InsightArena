@@ -71,7 +71,6 @@ export class MarketsService {
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
-
   /**
    * Get prediction statistics for a market - anonymous outcome counts only
    * Does NOT expose individual user stakes or identities
@@ -591,7 +590,6 @@ export class MarketsService {
       return saved;
     } catch (err) {
       this.logger.error(
-
         'Failed to update market in DB after Soroban success',
         err,
       );

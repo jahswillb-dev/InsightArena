@@ -152,8 +152,13 @@ export class CreatorEventsController {
   @Get(':id/matches/upcoming')
   @UseInterceptors(CacheInterceptor)
   @CacheTTL(60)
-  @ApiOperation({ summary: 'Get upcoming (unresolved, future) matches for an event' })
-  @ApiResponse({ status: 200, description: 'Upcoming matches ordered by match time' })
+  @ApiOperation({
+    summary: 'Get upcoming (unresolved, future) matches for an event',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Upcoming matches ordered by match time',
+  })
   @ApiResponse({ status: 404, description: 'Event not found' })
   getUpcomingMatches(@Param('id') id: string) {
     return this.creatorEventsService.getUpcomingMatches(id);

@@ -28,9 +28,7 @@ export class SearchController {
       'Returns up to 5 market titles and 5 usernames that start with the given term.',
   })
   @ApiResponse({ status: 200, type: SuggestionsResponseDto })
-  async getSuggestions(
-    @Query('q') q: string,
-  ): Promise<SuggestionsResponseDto> {
+  async getSuggestions(@Query('q') q: string): Promise<SuggestionsResponseDto> {
     return this.searchService.getSuggestions(q);
   }
 

@@ -257,12 +257,16 @@ describe('AdminService (Verified Addresses)', () => {
 
     it('should throw ConflictException if user is already banned', async () => {
       userRepository.findOne.mockResolvedValue({ id: 'u1', is_banned: true });
-      await expect(service.banUser('u1', 'reason', 'admin')).rejects.toThrow('User is already banned');
+      await expect(service.banUser('u1', 'reason', 'admin')).rejects.toThrow(
+        'User is already banned',
+      );
     });
 
     it('should throw BadRequestException if user is not banned', async () => {
       userRepository.findOne.mockResolvedValue({ id: 'u1', is_banned: false });
-      await expect(service.unbanUser('u1', 'admin')).rejects.toThrow('User is not banned');
+      await expect(service.unbanUser('u1', 'admin')).rejects.toThrow(
+        'User is not banned',
+      );
     });
   });
 });

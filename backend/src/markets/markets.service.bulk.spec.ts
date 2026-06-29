@@ -13,6 +13,8 @@ import { CreateMarketDto } from './dto/create-market.dto';
 import { UserBookmark } from './entities/user-bookmark.entity';
 import { Prediction } from '../predictions/entities/prediction.entity';
 import { WebhookDispatcherService } from '../webhooks/services/webhook-dispatcher.service';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+
 
 describe('MarketsService - Bulk Creation', () => {
   let service: MarketsService;
@@ -71,7 +73,6 @@ describe('MarketsService - Bulk Creation', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        MarketsService,
         {
           provide: getRepositoryToken(Market),
           useValue: marketsRepository,
@@ -114,6 +115,15 @@ describe('MarketsService - Bulk Creation', () => {
         {
           provide: WebhookDispatcherService,
           useValue: { emit: jest.fn() },
+        },
+        {
+          provide: CACHE_MANAGER,
+          useValue: {
+            get: jest.fn(),
+            set: jest.fn(),
+            del: jest.fn(),
+            reset: jest.fn(),
+          },
         },
       ],
     }).compile();

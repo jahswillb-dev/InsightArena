@@ -54,7 +54,9 @@ export class SearchEventResultDto {
   @ApiPropertyOptional({ description: 'Campaign banner URL' })
   banner_url?: string | null;
 
-  @ApiPropertyOptional({ description: 'Whether the campaign has been finalized' })
+  @ApiPropertyOptional({
+    description: 'Whether the campaign has been finalized',
+  })
   is_finalized?: boolean;
 
   @ApiProperty({ type: SearchHighlightsDto })

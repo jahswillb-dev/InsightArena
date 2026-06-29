@@ -189,9 +189,9 @@ describe('NotificationsService', () => {
     it('should throw NotFoundException when notification belongs to a different user', async () => {
       mockRepository.update.mockResolvedValue({ affected: 0 });
 
-      await expect(
-        service.markAsRead(1, 'GDIFFERENTADDRESS'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.markAsRead(1, 'GDIFFERENTADDRESS')).rejects.toThrow(
+        NotFoundException,
+      );
 
       expect(
         mockNotificationBroadcaster.broadcastNotificationRead,

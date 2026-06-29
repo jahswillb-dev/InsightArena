@@ -79,7 +79,10 @@ export class CompetitionSearchResult {
 }
 
 export class SuggestionsResponseDto {
-  @ApiProperty({ type: [String], description: 'Up to 5 matching market titles' })
+  @ApiProperty({
+    type: [String],
+    description: 'Up to 5 matching market titles',
+  })
   markets: string[];
 
   @ApiProperty({ type: [String], description: 'Up to 5 matching usernames' })

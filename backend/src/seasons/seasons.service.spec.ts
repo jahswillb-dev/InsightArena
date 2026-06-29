@@ -92,7 +92,6 @@ describe('SeasonsService', () => {
         updated_at: new Date(),
       };
 
-
       const getManyAndCount = jest.fn().mockResolvedValue([[s1], 15]);
       seasonsRepository.createQueryBuilder.mockReturnValue({
         leftJoinAndSelect: jest.fn().mockReturnThis(),
@@ -140,7 +139,6 @@ describe('SeasonsService', () => {
         created_at: new Date(),
         updated_at: new Date(),
       };
-
 
       seasonsRepository.createQueryBuilder.mockReturnValue({
         leftJoinAndSelect: jest.fn().mockReturnThis(),
@@ -243,7 +241,6 @@ describe('SeasonsService', () => {
       updated_at: new Date(),
     };
 
-
     beforeEach(() => {
       seasonsRepository.exist.mockResolvedValue(false);
       seasonsRepository.create.mockImplementation((x) => x as Season);
@@ -323,10 +320,34 @@ describe('SeasonsService', () => {
       };
 
       const attempts = [
-        { label: '[150, 250] starts inside => reject', start: 150, end: 250, ok: false, season: 10 },
-        { label: '[50, 150] ends inside => reject', start: 50, end: 150, ok: false, season: 11 },
-        { label: '[120, 180] fully inside => reject', start: 120, end: 180, ok: false, season: 12 },
-        { label: '[200, 300] starts at end => success', start: 200, end: 300, ok: true, season: 13 },
+        {
+          label: '[150, 250] starts inside => reject',
+          start: 150,
+          end: 250,
+          ok: false,
+          season: 10,
+        },
+        {
+          label: '[50, 150] ends inside => reject',
+          start: 50,
+          end: 150,
+          ok: false,
+          season: 11,
+        },
+        {
+          label: '[120, 180] fully inside => reject',
+          start: 120,
+          end: 180,
+          ok: false,
+          season: 12,
+        },
+        {
+          label: '[200, 300] starts at end => success',
+          start: 200,
+          end: 300,
+          ok: true,
+          season: 13,
+        },
       ] as const;
 
       for (const a of attempts) {
@@ -338,9 +359,9 @@ describe('SeasonsService', () => {
         seasonsRepository.createQueryBuilder.mockReturnValue(qb);
 
         if (!a.ok) {
-          await expect(service.create(mkDto(a.season, a.start, a.end))).rejects.toBeInstanceOf(
-            ConflictException,
-          );
+          await expect(
+            service.create(mkDto(a.season, a.start, a.end)),
+          ).rejects.toBeInstanceOf(ConflictException);
           expect(seasonsRepository.save).not.toHaveBeenCalled();
         } else {
           seasonsRepository.save.mockResolvedValueOnce({
@@ -385,7 +406,6 @@ describe('SeasonsService', () => {
       );
       expect(seasonsRepository.save).not.toHaveBeenCalled();
     });
-
 
     it('calls Soroban when sync_soroban is true', async () => {
       sorobanService.createSeason.mockResolvedValue({

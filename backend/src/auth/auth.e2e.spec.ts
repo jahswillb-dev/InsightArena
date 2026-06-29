@@ -145,10 +145,11 @@ describe('Auth E2E — challenge → verify flow', () => {
 
     mockUserPreferencesRepository.findOneBy.mockResolvedValue(null);
     mockUserPreferencesRepository.create.mockImplementation(
-      (dto: { userId: string }) => ({
-        id: 'prefs-uuid',
-        userId: dto.userId,
-      } as UserPreferences),
+      (dto: { userId: string }) =>
+        ({
+          id: 'prefs-uuid',
+          userId: dto.userId,
+        }) as UserPreferences,
     );
     mockUserPreferencesRepository.save.mockImplementation(
       (prefs: UserPreferences) => Promise.resolve(prefs),

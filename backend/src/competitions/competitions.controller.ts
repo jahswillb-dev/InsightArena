@@ -78,8 +78,14 @@ export class CompetitionsController {
   @UseGuards(BanGuard)
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update a competition before it starts (creator only)' })
-  @ApiResponse({ status: 200, description: 'Competition updated', type: Competition })
+  @ApiOperation({
+    summary: 'Update a competition before it starts (creator only)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Competition updated',
+    type: Competition,
+  })
   @ApiResponse({ status: 400, description: 'Competition already started' })
   @ApiResponse({ status: 403, description: 'Only the creator can update' })
   @ApiResponse({ status: 404, description: 'Competition not found' })

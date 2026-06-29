@@ -682,12 +682,18 @@ describe('PredictionsService', () => {
 
       expect(result.total).toBe(1);
       expect(result.data).toHaveLength(1);
-      expect(qbMock.andWhere).toHaveBeenCalledWith('market.is_resolved = :isResolved', {
-        isResolved: true,
-      });
-      expect(qbMock.andWhere).toHaveBeenCalledWith('market.is_cancelled = :isCancelled', {
-        isCancelled: false,
-      });
+      expect(qbMock.andWhere).toHaveBeenCalledWith(
+        'market.is_resolved = :isResolved',
+        {
+          isResolved: true,
+        },
+      );
+      expect(qbMock.andWhere).toHaveBeenCalledWith(
+        'market.is_cancelled = :isCancelled',
+        {
+          isCancelled: false,
+        },
+      );
       expect(qbMock.andWhere).toHaveBeenCalledWith(
         'market.resolved_outcome = prediction.chosen_outcome',
       );
@@ -702,12 +708,18 @@ describe('PredictionsService', () => {
         status: PredictionStatus.Active,
       });
 
-      expect(qbMock.andWhere).toHaveBeenCalledWith('market.is_resolved = :isResolved', {
-        isResolved: false,
-      });
-      expect(qbMock.andWhere).toHaveBeenCalledWith('market.is_cancelled = :isCancelled', {
-        isCancelled: false,
-      });
+      expect(qbMock.andWhere).toHaveBeenCalledWith(
+        'market.is_resolved = :isResolved',
+        {
+          isResolved: false,
+        },
+      );
+      expect(qbMock.andWhere).toHaveBeenCalledWith(
+        'market.is_cancelled = :isCancelled',
+        {
+          isCancelled: false,
+        },
+      );
     });
 
     it('should apply status filter at database level for Lost status', async () => {
@@ -719,12 +731,18 @@ describe('PredictionsService', () => {
         status: PredictionStatus.Lost,
       });
 
-      expect(qbMock.andWhere).toHaveBeenCalledWith('market.is_resolved = :isResolved', {
-        isResolved: true,
-      });
-      expect(qbMock.andWhere).toHaveBeenCalledWith('market.is_cancelled = :isCancelled', {
-        isCancelled: false,
-      });
+      expect(qbMock.andWhere).toHaveBeenCalledWith(
+        'market.is_resolved = :isResolved',
+        {
+          isResolved: true,
+        },
+      );
+      expect(qbMock.andWhere).toHaveBeenCalledWith(
+        'market.is_cancelled = :isCancelled',
+        {
+          isCancelled: false,
+        },
+      );
       expect(qbMock.andWhere).toHaveBeenCalledWith(
         'market.resolved_outcome != prediction.chosen_outcome',
       );
@@ -739,9 +757,12 @@ describe('PredictionsService', () => {
         status: PredictionStatus.Pending,
       });
 
-      expect(qbMock.andWhere).toHaveBeenCalledWith('market.is_cancelled = :isCancelled', {
-        isCancelled: true,
-      });
+      expect(qbMock.andWhere).toHaveBeenCalledWith(
+        'market.is_cancelled = :isCancelled',
+        {
+          isCancelled: true,
+        },
+      );
     });
 
     it('should not filter when status is not provided', async () => {

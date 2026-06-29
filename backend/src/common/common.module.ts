@@ -24,6 +24,11 @@ import { IdempotencyInterceptor } from './idempotency/idempotency.interceptor';
     TypeOrmModule.forFeature([IdempotencyKey]),
   ],
   providers: [FilteringService, IdempotencyService, IdempotencyInterceptor],
-  exports: [JwtModule, FilteringService, IdempotencyService, IdempotencyInterceptor],
+  exports: [
+    JwtModule,
+    FilteringService,
+    IdempotencyService,
+    IdempotencyInterceptor,
+  ],
 })
 export class CommonModule {}

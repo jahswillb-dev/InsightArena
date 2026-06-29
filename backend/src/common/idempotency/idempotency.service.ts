@@ -24,7 +24,11 @@ export class IdempotencyService {
    * Atomically claims a key for a user. Relies on the unique (key, userId)
    * index to detect a concurrent or prior request with the same key.
    */
-  async acquire(key: string, userId: string, requestHash: string): Promise<AcquireResult> {
+  async acquire(
+    key: string,
+    userId: string,
+    requestHash: string,
+  ): Promise<AcquireResult> {
     try {
       const inserted = await this.repository.save(
         this.repository.create({

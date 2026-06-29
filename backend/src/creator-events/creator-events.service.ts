@@ -284,7 +284,9 @@ export class CreatorEventsService {
   async getEventMatches(
     eventId: string,
     query: ListMatchesQueryDto,
-  ): Promise<Array<ContractMatch & { predictionCount: number; userPrediction?: string }>> {
+  ): Promise<
+    Array<ContractMatch & { predictionCount: number; userPrediction?: string }>
+  > {
     const event = await this.contractService.getEvent(eventId);
     if (!event) {
       throw new NotFoundException(`Event ${eventId} not found`);
@@ -670,10 +672,11 @@ export class CreatorEventsService {
       case CreatorEventSearchStatus.Finished:
         queryBuilder.andWhere(
           new Brackets((qb) => {
-            qb.where('creatorEvent.end_time < :now', { now: new Date() }).orWhere(
-              'creatorEvent.is_active = :isActive',
-              { isActive: false },
-            );
+            qb.where('creatorEvent.end_time < :now', {
+              now: new Date(),
+            }).orWhere('creatorEvent.is_active = :isActive', {
+              isActive: false,
+            });
           }),
         );
         break;

@@ -191,10 +191,7 @@ export class AuthService implements OnModuleInit {
   private findValidChallengeForAddress(stellar_address: string): string | null {
     const now = Date.now();
     for (const [key, entry] of this.challengeCache.entries()) {
-      if (
-        key.endsWith(`:${stellar_address}`) &&
-        now <= entry.expiresAt
-      ) {
+      if (key.endsWith(`:${stellar_address}`) && now <= entry.expiresAt) {
         return key;
       }
     }

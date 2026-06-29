@@ -65,7 +65,9 @@ export class UsersController {
   }
 
   @Get('me/stats')
-  @ApiOperation({ summary: 'Get lightweight prediction stats for current user' })
+  @ApiOperation({
+    summary: 'Get lightweight prediction stats for current user',
+  })
   @ApiResponse({
     status: 200,
     description: 'User stats retrieved successfully',

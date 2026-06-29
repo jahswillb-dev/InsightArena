@@ -6,7 +6,9 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { SorobanService } from '../soroban/soroban.service';
+
 import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { CreateMarketDto } from './dto/create-market.dto';
@@ -123,10 +125,12 @@ describe('MarketsService', () => {
           useValue: { emit: jest.fn() },
         },
         {
-          provide: 'CACHE_MANAGER',
+          provide: CACHE_MANAGER,
           useValue: {
-            del: jest.fn(),
+            get: jest.fn(),
             set: jest.fn(),
+            del: jest.fn(),
+            reset: jest.fn(),
           },
         },
       ],
@@ -332,7 +336,7 @@ describe('MarketsService', () => {
         },
       ] as Market[];
 
-      marketsRepository.find.mockResolvedValue(markets as Market[]);
+      marketsRepository.find.mockResolvedValue(markets);
 
       const result = await service.getTrendingMarkets({ page: 1, limit: 20 });
 
@@ -385,6 +389,14 @@ describe('MarketsService', () => {
 describe('MarketsService.findFeaturedMarkets', () => {
   let service: MarketsService;
   let marketsRepository: jest.Mocked<Repository<Market>>;
+
+  const cacheMock = {
+    get: jest.fn(),
+    set: jest.fn(),
+    del: jest.fn(),
+    reset: jest.fn(),
+  };
+
 
   const makeFeaturedMarket = (overrides: Partial<Market> = {}): Market =>
     ({

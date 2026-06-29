@@ -23,7 +23,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
     context: ExecutionContext,
     next: CallHandler,
   ): Promise<Observable<unknown>> {
-    const request = context.switchToHttp().getRequest<Request & { user: { id: string } }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<Request & { user: { id: string } }>();
     const key = request.headers[IDEMPOTENCY_HEADER];
 
     if (!key || typeof key !== 'string') {
@@ -33,7 +35,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
     }
 
     const requestHash = createHash('sha256')
-      .update(`${request.method}:${request.originalUrl}:${JSON.stringify(request.body ?? {})}`)
+      .update(
+        `${request.method}:${request.originalUrl}:${JSON.stringify(request.body ?? {})}`,
+      )
       .digest('hex');
 
     const result = await this.idempotencyService.acquire(
@@ -60,8 +64,14 @@ export class IdempotencyInterceptor implements NestInterceptor {
     const { record } = result;
     return next.handle().pipe(
       tap((data) => {
-        const response = context.switchToHttp().getResponse<{ statusCode: number }>();
-        void this.idempotencyService.complete(record.id, response.statusCode, data);
+        const response = context
+          .switchToHttp()
+          .getResponse<{ statusCode: number }>();
+        void this.idempotencyService.complete(
+          record.id,
+          response.statusCode,
+          data,
+        );
       }),
       catchError((err) => {
         void this.idempotencyService.release(record.id);

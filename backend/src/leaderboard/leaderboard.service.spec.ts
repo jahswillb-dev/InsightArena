@@ -204,9 +204,12 @@ describe('LeaderboardService', () => {
       const result = await service.getTopLeaderboard(50);
 
       expect(mockSeasonsService.findActive).toHaveBeenCalled();
-      expect(mockQb.where).toHaveBeenCalledWith('entry.season_id = :season_id', {
-        season_id: 'season-1',
-      });
+      expect(mockQb.where).toHaveBeenCalledWith(
+        'entry.season_id = :season_id',
+        {
+          season_id: 'season-1',
+        },
+      );
       expect(mockQb.take).toHaveBeenCalledWith(20);
       expect(result).toHaveLength(1);
       expect(result[0].rank).toBe(1);
