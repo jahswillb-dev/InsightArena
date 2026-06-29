@@ -117,6 +117,117 @@ describe('OracleService', () => {
       expect(result.total).toBe(2);
     });
 
+    it('should exclude future matches and already-submitted matches', async () => {
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 3600000);
+      const oneHourLater = new Date(now.getTime() + 3600000);
+
+      const pastUnsubmittedMatch = {
+        id: 'match-past-unsubmitted',
+        on_chain_match_id: '201',
+        event_id: 'event-1',
+        team_a: 'Team A',
+        team_b: 'Team B',
+        match_time: oneHourAgo,
+        result_submitted: false,
+        prediction_count: 5,
+        created_at: new Date(oneHourAgo.getTime() - 86400000),
+      } as CreatorEventMatch;
+
+      const pastSubmittedMatch = {
+        id: 'match-past-submitted',
+        on_chain_match_id: '202',
+        event_id: 'event-1',
+        team_a: 'Team C',
+        team_b: 'Team D',
+        match_time: oneHourAgo,
+        result_submitted: true,
+        prediction_count: 10,
+        created_at: new Date(oneHourAgo.getTime() - 86400000),
+      } as CreatorEventMatch;
+
+      const futureUnsubmittedMatch = {
+        id: 'match-future-unsubmitted',
+        on_chain_match_id: '203',
+        event_id: 'event-1',
+        team_a: 'Team E',
+        team_b: 'Team F',
+        match_time: oneHourLater,
+        result_submitted: false,
+        prediction_count: 8,
+        created_at: new Date(),
+      } as CreatorEventMatch;
+
+      const futureSubmittedMatch = {
+        id: 'match-future-submitted',
+        on_chain_match_id: '204',
+        event_id: 'event-1',
+        team_a: 'Team G',
+        team_b: 'Team H',
+        match_time: oneHourLater,
+        result_submitted: true,
+        prediction_count: 12,
+        created_at: new Date(),
+      } as CreatorEventMatch;
+
+      const qb = createMockQueryBuilder<CreatorEvent>([
+        [pastUnsubmittedMatch],
+        1,
+      ]);
+      matchRepo.createQueryBuilder.mockReturnValue(
+        qb as unknown as SelectQueryBuilder<CreatorEvent>,
+      );
+
+      const result = await service.getPendingMatches(
+        new ListPendingMatchesQueryDto(),
+      );
+
+      expect(result.total).toBe(1);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].match.id).toBe('match-past-unsubmitted');
+      expect(result.data[0].match.result_submitted).toBe(false);
+
+      expect(qb.where).toHaveBeenCalledWith(
+        'm.match_time < :now',
+        expect.any(Object),
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'm.result_submitted = :submitted',
+        { submitted: false },
+      );
+    });
+
+    it('should calculate time_since_match_started_seconds correctly and non-negative', async () => {
+      const now = new Date();
+      const fiftySecondsAgo = new Date(now.getTime() - 50000);
+
+      const recentMatch = {
+        id: 'match-recent',
+        on_chain_match_id: '205',
+        event_id: 'event-1',
+        team_a: 'Team I',
+        team_b: 'Team J',
+        match_time: fiftySecondsAgo,
+        result_submitted: false,
+        prediction_count: 3,
+        created_at: new Date(fiftySecondsAgo.getTime() - 3600000),
+      } as CreatorEventMatch;
+
+      const qb = createMockQueryBuilder<CreatorEvent>([[recentMatch], 1]);
+      matchRepo.createQueryBuilder.mockReturnValue(
+        qb as unknown as SelectQueryBuilder<CreatorEvent>,
+      );
+
+      const result = await service.getPendingMatches(
+        new ListPendingMatchesQueryDto(),
+      );
+
+      expect(result.data).toHaveLength(1);
+      const timeSinceStarted = result.data[0].time_since_match_started_seconds;
+      expect(timeSinceStarted).toBeGreaterThanOrEqual(0);
+      expect(timeSinceStarted).toBeLessThanOrEqual(60);
+    });
+
     it('should return empty array when no pending matches', async () => {
       const qb = createMockQueryBuilder<CreatorEvent>([[], 0]);
       matchRepo.createQueryBuilder.mockReturnValue(
