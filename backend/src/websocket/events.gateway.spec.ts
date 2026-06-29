@@ -137,6 +137,75 @@ describe('EventsGateway', () => {
     });
   });
 
+  describe('rate limiting', () => {
+    it('allows up to 60 messages without disconnect', async () => {
+      const client = makeSocket();
+      const rateLimits = (gateway as any).rateLimits;
+
+      for (let i = 0; i < 60; i++) {
+        await gateway.handleJoin(client, 'event:1');
+      }
+
+      expect(client.disconnect).not.toHaveBeenCalled();
+      expect(client.emit).toHaveBeenCalledWith('joined', { room: 'event:1' });
+    });
+
+    it('disconnects socket on 61st message when rate limit exceeded', async () => {
+      const client = makeSocket();
+
+      for (let i = 0; i < 60; i++) {
+        await gateway.handleJoin(client, 'event:1');
+      }
+
+      expect(client.disconnect).not.toHaveBeenCalled();
+
+      await gateway.handleJoin(client, 'event:2');
+
+      expect(client.disconnect).toHaveBeenCalledTimes(1);
+      expect(client.emit).toHaveBeenCalledWith('error', {
+        message: 'Rate limit exceeded',
+      });
+    });
+
+    it('enforces per-socket rate limiting', async () => {
+      const client1 = makeSocket({ id: 'socket-1' });
+      const client2 = makeSocket({ id: 'socket-2' });
+
+      (gateway as any).rateLimits.set('socket-1', 60);
+
+      await gateway.handleJoin(client1, 'event:1');
+
+      expect(client1.disconnect).toHaveBeenCalled();
+      expect(client1.emit).toHaveBeenCalledWith('error', {
+        message: 'Rate limit exceeded',
+      });
+
+      await gateway.handleJoin(client2, 'event:1');
+
+      expect(client2.disconnect).not.toHaveBeenCalled();
+      expect(client2.emit).toHaveBeenCalledWith('joined', { room: 'event:1' });
+    });
+
+    it('resets rate limit counter after window expires', async () => {
+      jest.useFakeTimers();
+      const client = makeSocket();
+      const rateLimitWindow = 60_000;
+
+      (gateway as any).rateLimits.set('socket-1', 59);
+
+      await gateway.handleJoin(client, 'event:1');
+
+      expect(client.disconnect).not.toHaveBeenCalled();
+
+      jest.advanceTimersByTime(rateLimitWindow + 100);
+
+      const rateLimits = (gateway as any).rateLimits;
+      expect(rateLimits.has('socket-1')).toBe(false);
+
+      jest.useRealTimers();
+    });
+  });
+
   describe('handleLeave', () => {
     it('leaves room and emits left event', async () => {
       const client = makeSocket();
