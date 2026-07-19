@@ -1102,3 +1102,147 @@ fn extend_market_end_time_fails_when_closed() {
     let result = client.try_extend_market_end_time(&creator, &id, &(params.end_time + 500));
     assert!(matches!(result, Err(Ok(InsightArenaError::MarketAlreadyClosed))));
 }
+
+// ============================================================================
+// Pagination boundary cases — issue #1250
+// ============================================================================
+
+#[test]
+fn list_markets_start_zero_returns_empty() {
+    // start=0 is explicitly guarded: the function treats 0 as invalid
+    // since market IDs are 1-based. Must return empty, not panic.
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = deploy(&env);
+    let creator = Address::generate(&env);
+
+    for _ in 0..10 {
+        client.create_market(&creator, &default_params(&env));
+    }
+
+    let result = client.list_markets(&0_u64, &5_u32);
+    assert_eq!(result.len(), 0);
+}
+
+#[test]
+fn list_markets_two_pages_tile_with_zero_overlap() {
+    // Create 10 markets. Page 1: start=1, limit=5 → markets 1–5.
+    // Page 2: start=6, limit=5 → markets 6–10.
+    // Union must contain exactly 10 unique IDs with no gaps or duplicates.
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = deploy(&env);
+    let creator = Address::generate(&env);
+
+    for _ in 0..10 {
+        client.create_market(&creator, &default_params(&env));
+    }
+
+    let page1 = client.list_markets(&1_u64, &5_u32);
+    let page2 = client.list_markets(&6_u64, &5_u32);
+
+    assert_eq!(page1.len(), 5);
+    assert_eq!(page2.len(), 5);
+
+    // Verify page 1 IDs are 1–5 in order
+    for i in 0..5_u32 {
+        assert_eq!(page1.get(i).unwrap().market_id, (i + 1) as u64);
+    }
+
+    // Verify page 2 IDs are 6–10 in order
+    for i in 0..5_u32 {
+        assert_eq!(page2.get(i).unwrap().market_id, (i + 6) as u64);
+    }
+
+    // Verify zero overlap between pages
+    let mut seen = Vec::new(&env);
+    for i in 0..5_u32 {
+        let id = page1.get(i).unwrap().market_id;
+        assert!(!seen.contains(id), "duplicate market_id {} in page1", id);
+        seen.push_back(id);
+    }
+    for i in 0..5_u32 {
+        let id = page2.get(i).unwrap().market_id;
+        assert!(!seen.contains(id), "overlap: market_id {} appears in both pages", id);
+        seen.push_back(id);
+    }
+
+    assert_eq!(seen.len(), 10);
+}
+
+#[test]
+fn list_markets_start_equals_total_returns_last_market() {
+    // start=10 with 10 total markets: start == total, not start > total.
+    // The guard only rejects start > total, so this returns market 10.
+    // This is the exact boundary where start + limit - 1 overshoots but
+    // start itself is valid.
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = deploy(&env);
+    let creator = Address::generate(&env);
+
+    for _ in 0..10 {
+        client.create_market(&creator, &default_params(&env));
+    }
+
+    let result = client.list_markets(&10_u64, &5_u32);
+    assert_eq!(result.len(), 1);
+    assert_eq!(result.get(0).unwrap().market_id, 10);
+}
+
+#[test]
+fn list_markets_start_exceeds_total_returns_empty() {
+    // start=11 with 10 total markets: start > total, guard fires, empty returned.
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = deploy(&env);
+    let creator = Address::generate(&env);
+
+    for _ in 0..10 {
+        client.create_market(&creator, &default_params(&env));
+    }
+
+    let result = client.list_markets(&11_u64, &5_u32);
+    assert_eq!(result.len(), 0);
+}
+
+#[test]
+fn list_markets_near_end_returns_remaining_markets_only() {
+    // start=9 with 10 total markets and limit=5: only markets 9 and 10
+    // are available, so result must have exactly 2 entries.
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = deploy(&env);
+    let creator = Address::generate(&env);
+
+    for _ in 0..10 {
+        client.create_market(&creator, &default_params(&env));
+    }
+
+    let result = client.list_markets(&9_u64, &5_u32);
+    assert_eq!(result.len(), 2);
+    assert_eq!(result.get(0).unwrap().market_id, 9);
+    assert_eq!(result.get(1).unwrap().market_id, 10);
+}
+
+#[test]
+fn list_markets_ids_are_in_ascending_order() {
+    // Verifies market IDs are strictly ascending across a full page.
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = deploy(&env);
+    let creator = Address::generate(&env);
+
+    for _ in 0..10 {
+        client.create_market(&creator, &default_params(&env));
+    }
+
+    let result = client.list_markets(&1_u64, &10_u32);
+    assert_eq!(result.len(), 10);
+
+    for i in 1..10_u32 {
+        let prev = result.get(i - 1).unwrap().market_id;
+        let curr = result.get(i).unwrap().market_id;
+        assert!(curr > prev, "market_id not ascending at index {}: {} >= {}", i, prev, curr);
+    }
+}
