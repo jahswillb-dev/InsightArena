@@ -1,7 +1,20 @@
+import type { Metadata } from "next";
 import Header from '@/component/Header';
 import Footer from "@/component/Footer";
 import PageBackground from "@/component/PageBackground";
 import React from 'react';
+
+export const metadata: Metadata = {
+  title: "Terms of Service",
+  description:
+    "Read the InsightArena terms of service covering user responsibilities, trading rules, disclaimers, and platform usage guidelines.",
+  openGraph: {
+    title: "Terms of Service | InsightArena",
+    description:
+      "Read the InsightArena terms of service covering user responsibilities, trading rules, disclaimers, and platform usage guidelines.",
+    type: "website",
+  },
+};
 
 const TermsPage = () => {
   const lastUpdated = "March 29, 2026";

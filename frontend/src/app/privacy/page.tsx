@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import Head from "next/head";
 import Link from "next/link";
 import Header from "@/component/Header";
 import Footer from "@/component/Footer";
@@ -11,10 +10,6 @@ export default function PrivacyPolicy() {
 
   return (
     <>
-      <Head>
-        <title>Privacy Policy | InsightArena</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-      </Head>
       <div className="relative min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 overflow-x-hidden text-gray-300 font-sans">
         {/* Global Network Lines Background */}
         <div className="absolute inset-0 w-full h-full z-0 pointer-events-none">
