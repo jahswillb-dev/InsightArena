@@ -8,7 +8,7 @@ type ModalStep = "idle" | "connecting" | "success" | "error";
 interface ConnectWalletModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (address: string, token: string) => void;
+  onSuccess: (address: string, walletId: string) => void;
 }
 
 interface WalletOption {
@@ -103,7 +103,7 @@ export default function ConnectWalletModal({
 
       // Let WalletContext handle the redirect via onSuccess
       setTimeout(() => {
-        onSuccess(address, `wallet_${address}`);
+        onSuccess(address, walletId);
       }, 1200);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

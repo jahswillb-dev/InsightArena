@@ -8,7 +8,8 @@ import { useWallet } from "@/context/WalletContext";
 
 export default function Header() {
   const pathname = usePathname();
-  const { address, isAuthenticated, logout, openConnectModal } = useWallet();
+  const { address, isAuthenticated, isRestoring, logout, openConnectModal } =
+    useWallet();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -230,7 +231,12 @@ export default function Header() {
                 </span>
               </Link>
 
-              {!isAuthenticated ? (
+              {isRestoring && !isAuthenticated ? (
+                <div className="hidden md:inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[#111726] px-6 py-2 text-sm font-semibold text-gray-400">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-gray-500" />
+                  Loading...
+                </div>
+              ) : !isAuthenticated ? (
                 <button
                   type="button"
                   className="hidden md:inline-flex rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600"
@@ -380,7 +386,12 @@ export default function Header() {
             >
               Profile
             </Link>
-            {!isAuthenticated ? (
+            {isRestoring && !isAuthenticated ? (
+              <div className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-[#111726] px-4 py-3 text-sm font-semibold text-gray-400">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-gray-500" />
+                Loading...
+              </div>
+            ) : !isAuthenticated ? (
               <button
                 type="button"
                 className="w-full rounded-lg bg-orange-500 px-4 py-3 font-semibold text-white hover:bg-orange-600"

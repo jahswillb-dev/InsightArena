@@ -24,6 +24,7 @@ export interface WalletContextValue {
   // Auth state
   isAuthenticated: boolean;
   isAuthenticating: boolean;
+  isRestoring: boolean;
   user: AuthUser | null;
   token: string | null;
   authError: string | null;
@@ -44,6 +45,7 @@ const DEFAULT_CONTEXT_VALUE: WalletContextValue = {
   address: null,
   isAuthenticated: false,
   isAuthenticating: false,
+  isRestoring: false,
   user: null,
   token: null,
   authError: null,
@@ -53,6 +55,56 @@ const DEFAULT_CONTEXT_VALUE: WalletContextValue = {
   authenticate: async () => false,
   logout: () => {},
 };
+
+// Persisted wallet session — id/type + public key only, never secret material.
+const WALLET_STORAGE_KEY = "insightarena.wallet.v1";
+
+interface StoredWalletSession {
+  walletId: string;
+  address: string;
+}
+
+function readStoredSession(): StoredWalletSession | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(WALLET_STORAGE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<StoredWalletSession> | null;
+    if (
+      !parsed ||
+      typeof parsed.walletId !== "string" ||
+      typeof parsed.address !== "string"
+    ) {
+      window.localStorage.removeItem(WALLET_STORAGE_KEY);
+      return null;
+    }
+
+    return { walletId: parsed.walletId, address: parsed.address };
+  } catch {
+    // Corrupted/old-format value — clear rather than throw.
+    window.localStorage.removeItem(WALLET_STORAGE_KEY);
+    return null;
+  }
+}
+
+function writeStoredSession(session: StoredWalletSession) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify(session));
+  } catch {
+    // Storage unavailable/full — persistence is best-effort.
+  }
+}
+
+function clearStoredSession() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(WALLET_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
 
 const WalletContext = createContext<WalletContextValue>(DEFAULT_CONTEXT_VALUE);
 
@@ -65,10 +117,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(true);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    // Detect any Stellar wallet via the kit
+    if (typeof window === "undefined") {
+      setIsRestoring(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    // Detect any Stellar wallet via the kit, then attempt a silent
+    // reconnect if a session was persisted from a previous visit.
     Promise.all([
       import("@creit-tech/stellar-wallets-kit/sdk"),
       import("@creit-tech/stellar-wallets-kit/types"),
@@ -77,7 +137,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       import("@creit-tech/stellar-wallets-kit/modules/albedo"),
     ])
       .then(
-        ([
+        async ([
           { StellarWalletsKit },
           { Networks },
           { FreighterModule, FREIGHTER_ID },
@@ -93,13 +153,49 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               new AlbedoModule(),
             ],
           });
-          return StellarWalletsKit.refreshSupportedWallets();
+
+          const wallets = await StellarWalletsKit.refreshSupportedWallets();
+          if (cancelled) return;
+          setIsFreighterInstalled(wallets.some((w) => w.isAvailable));
+
+          const stored = readStoredSession();
+          if (!stored) return;
+
+          try {
+            StellarWalletsKit.setWallet(stored.walletId);
+            const { address: restoredAddress } =
+              await StellarWalletsKit.fetchAddress();
+            if (cancelled) return;
+
+            if (!restoredAddress) {
+              clearStoredSession();
+              return;
+            }
+
+            setAddress(restoredAddress);
+            setToken(`wallet_${restoredAddress}`);
+            setUser({ username: "Alex" });
+            writeStoredSession({
+              walletId: stored.walletId,
+              address: restoredAddress,
+            });
+          } catch {
+            // Wallet extension rejected/unavailable — fall back to
+            // disconnected state silently, no error toast.
+            if (!cancelled) clearStoredSession();
+          }
         },
       )
-      .then((wallets) => {
-        setIsFreighterInstalled(wallets.some((w) => w.isAvailable));
+      .catch(() => {
+        if (!cancelled) setIsFreighterInstalled(false);
       })
-      .catch(() => setIsFreighterInstalled(false));
+      .finally(() => {
+        if (!cancelled) setIsRestoring(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // wallet connected = authenticated (no backend needed)
@@ -148,16 +244,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setAuthError(null);
     setIsConnectModalOpen(false);
+    clearStoredSession();
     router.push("/");
   }, []);
 
   const handleModalSuccess = useCallback(
-    (walletAddress: string, _jwt: string) => {
+    (walletAddress: string, walletId: string) => {
       setAddress(walletAddress);
       setToken(`wallet_${walletAddress}`);
       setUser({ username: "Alex" });
       setAuthError(null);
       setIsConnectModalOpen(false);
+      writeStoredSession({ walletId, address: walletAddress });
       router.push("/dashboard");
     },
     [router],
@@ -169,6 +267,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       address,
       isAuthenticated,
       isAuthenticating,
+      isRestoring,
       user,
       token,
       authError,
@@ -183,6 +282,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       address,
       isAuthenticated,
       isAuthenticating,
+      isRestoring,
       user,
       token,
       authError,
