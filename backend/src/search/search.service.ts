@@ -13,6 +13,7 @@ import {
   SearchType,
   SuggestionsResponseDto,
 } from './dto/global-search.dto';
+import { escapeLikeWildcards } from './dto/search-query.dto';
 
 @Injectable()
 export class SearchService {
@@ -32,19 +33,9 @@ export class SearchService {
     const searchType = dto.type ?? SearchType.All;
     const query = dto.query;
 
-    if (!query || query.trim().length < 2) {
-      return {
-        markets: [],
-        users: [],
-        competitions: [],
-        total: 0,
-        total_markets: 0,
-        total_users: 0,
-        total_competitions: 0,
-        page,
-        limit,
-      };
-    }
+    // Query is already validated by DTO (2-100 chars, trimmed, whitespace normalized)
+    // Note: Full-text search with plainto_tsquery doesn't need LIKE wildcard escaping
+    // because it uses lexeme matching, not pattern matching
 
     const [
       [markets, total_markets],
@@ -83,12 +74,15 @@ export class SearchService {
       return { markets: [], users: [] };
     }
 
+    // Escape SQL LIKE wildcards to match them literally
+    const escapedTerm = escapeLikeWildcards(term);
+
     const [markets, users] = await Promise.all([
       this.marketsRepository
         .createQueryBuilder('market')
         .select('market.title')
         .where('market.is_public = :isPublic', { isPublic: true })
-        .andWhere('market.title ILIKE :term', { term: `${term}%` })
+        .andWhere('market.title ILIKE :term', { term: `${escapedTerm}%` })
         .orderBy('market.title', 'ASC')
         .limit(5)
         .getMany(),
@@ -97,7 +91,7 @@ export class SearchService {
         .select('user.username')
         .where('user.is_banned = :banned', { banned: false })
         .andWhere('user.username IS NOT NULL')
-        .andWhere('user.username ILIKE :term', { term: `${term}%` })
+        .andWhere('user.username ILIKE :term', { term: `${escapedTerm}%` })
         .orderBy('user.username', 'ASC')
         .limit(5)
         .getMany(),

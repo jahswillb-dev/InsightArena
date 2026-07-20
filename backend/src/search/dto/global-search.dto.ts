@@ -8,7 +8,11 @@ import {
   Max,
   Min,
   MinLength,
+  MaxLength,
+  Validate,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsNotWhitespaceOnly } from './search-query.dto';
 
 export enum SearchType {
   All = 'all',
@@ -18,9 +22,25 @@ export enum SearchType {
 }
 
 export class GlobalSearchDto {
-  @ApiProperty({ description: 'Search query string', example: 'bitcoin' })
-  @IsString()
-  @MinLength(1)
+  @ApiProperty({
+    description:
+      'Search query string (2-100 characters, trimmed, wildcards escaped)',
+    example: 'bitcoin',
+    minLength: 2,
+    maxLength: 100,
+  })
+  @IsString({ message: 'Search query must be a string' })
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    return value.trim().replace(/\s+/g, ' ');
+  })
+  @Validate(IsNotWhitespaceOnly)
+  @MinLength(2, {
+    message: 'Search query must be at least 2 characters long',
+  })
+  @MaxLength(100, {
+    message: 'Search query must not exceed 100 characters',
+  })
   query: string;
 
   @ApiPropertyOptional({
