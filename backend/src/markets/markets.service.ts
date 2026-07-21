@@ -72,6 +72,21 @@ export class MarketsService {
   ) {}
 
   /**
+   * Centralized cache invalidation for any market state mutation.
+   * Clears the in-memory trending cache plus the trending/active list-level
+   * keys and the per-market detail key so stale reads can't occur after
+   * update/pause/resume/cancel/resolve.
+   */
+  private async invalidateMarketCaches(marketId: string): Promise<void> {
+    this.trendingCache = null;
+    await Promise.all([
+      this.cacheManager.del(CACHE_WARMING_KEYS.trendingEvents),
+      this.cacheManager.del(CACHE_WARMING_KEYS.activeEvents),
+      this.cacheManager.del(CACHE_WARMING_KEYS.popularEventDetail(marketId)),
+    ]);
+  }
+
+  /**
    * Get prediction statistics for a market - anonymous outcome counts only
    * Does NOT expose individual user stakes or identities
    * Results are cached for 5 minutes to avoid repeated DB queries
@@ -321,7 +336,9 @@ export class MarketsService {
       market.category = dto.category;
     }
 
-    return await this.marketsRepository.save(market);
+    const saved = await this.marketsRepository.save(market);
+    await this.invalidateMarketCaches(saved.id);
+    return saved;
   }
 
   async resolveMarket(id: string, outcome: string): Promise<Market> {
@@ -353,11 +370,7 @@ export class MarketsService {
     const saved = await this.marketsRepository.save(market);
 
     // Invalidate caches immediately after market state changes
-    this.trendingCache = null;
-    await this.cacheManager.del(CACHE_WARMING_KEYS.trendingEvents);
-    await this.cacheManager.del(
-      CACHE_WARMING_KEYS.popularEventDetail(saved.id),
-    );
+    await this.invalidateMarketCaches(saved.id);
 
     await this.webhookDispatcher.emit('market.resolved', {
       id: saved.id,
@@ -583,11 +596,7 @@ export class MarketsService {
       const saved = await this.marketsRepository.save(market);
 
       // Invalidate caches immediately after market state changes
-      this.trendingCache = null;
-      await this.cacheManager.del(CACHE_WARMING_KEYS.trendingEvents);
-      await this.cacheManager.del(
-        CACHE_WARMING_KEYS.popularEventDetail(saved.id),
-      );
+      await this.invalidateMarketCaches(saved.id);
 
       return saved;
     } catch (err) {
@@ -797,7 +806,9 @@ export class MarketsService {
     }
 
     market.is_paused = true;
-    return await this.marketsRepository.save(market);
+    const saved = await this.marketsRepository.save(market);
+    await this.invalidateMarketCaches(saved.id);
+    return saved;
   }
 
   async resumeMarket(id: string, user: User): Promise<Market> {
@@ -833,7 +844,9 @@ export class MarketsService {
     }
 
     market.is_paused = false;
-    return await this.marketsRepository.save(market);
+    const saved = await this.marketsRepository.save(market);
+    await this.invalidateMarketCaches(saved.id);
+    return saved;
   }
 
   async removeBookmark(marketId: string, user: User): Promise<void> {
