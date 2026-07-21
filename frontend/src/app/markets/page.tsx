@@ -6,6 +6,7 @@ import Footer from "@/component/Footer";
 import PageBackground from "@/component/PageBackground";
 import MarketCard from "@/component/MarketCard";
 import { useWallet } from "@/context/WalletContext";
+import { env } from "@/lib/env";
 
 type Market = {
   id: string;

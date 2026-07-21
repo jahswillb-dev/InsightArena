@@ -1,21 +1,8 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import Footer from "@/component/Footer";
 import Header from "@/component/Header";
 import PageBackground from "@/component/PageBackground";
-
-export const metadata: Metadata = {
-  title: "About",
-  description:
-    "Learn about InsightArena, the decentralized prediction market built on Stellar, and how we make forecasting accessible and community-owned.",
-  openGraph: {
-    title: "About | InsightArena",
-    description:
-      "Learn about InsightArena, the decentralized prediction market built on Stellar, and how we make forecasting accessible and community-owned.",
-    type: "website",
-  },
-};
 
 type StatCard = {
   label: string;
