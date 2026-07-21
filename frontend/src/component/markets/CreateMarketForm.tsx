@@ -138,9 +138,9 @@ function StepIndicator({ current }: { current: number }) {
 
 // ── Field helpers ─────────────────────────────────────────────────────────────
 
-function FieldError({ msg }: { msg?: string }) {
+function FieldError({ msg, id }: { msg?: string; id?: string }) {
   if (!msg) return null;
-  return <p className="text-xs text-rose-400">{msg}</p>;
+  return <p id={id} className="text-xs text-rose-400">{msg}</p>;
 }
 
 function Label({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) {
@@ -177,6 +177,41 @@ export default function CreateMarketForm() {
 
   function patch(partial: Partial<MarketDraft>) {
     setDraft((prev) => ({ ...prev, ...partial }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(partial)) {
+        delete next[key];
+      }
+      return next;
+    });
+  }
+
+  function validateField(field: string): string {
+    switch (field) {
+      case "title":
+        if (!draft.title.trim()) return "Title is required.";
+        if (draft.title.trim().length > MAX_TITLE) return `Title must be at most ${MAX_TITLE} characters.`;
+        return "";
+      case "endDate":
+      case "endClock": {
+        const endDt = draft.endDate ? `${draft.endDate}T${draft.endClock}` : "";
+        if (!draft.endDate) return "Market close date is required.";
+        if (!draft.endClock) return "Market close time is required.";
+        if (new Date(endDt) <= new Date()) return "Close date must be strictly in the future.";
+        return "";
+      }
+      case "outcomes": {
+        if (draft.outcomeMode === "multi") {
+          if (draft.outcomes.length < 2) return "Add at least 2 outcomes.";
+          if (new Set(draft.outcomes.map((o) => o.trim().toLowerCase())).size !== draft.outcomes.length)
+            return "Outcomes must be distinct.";
+          if (draft.outcomes.some((o) => !o.trim())) return "Outcomes cannot be empty.";
+        }
+        return "";
+      }
+      default:
+        return "";
+    }
   }
 
   function resumeDraft() {
@@ -262,10 +297,12 @@ export default function CreateMarketForm() {
     if (!val || draft.outcomes.includes(val) || draft.outcomes.length >= 10) return;
     patch({ outcomes: [...draft.outcomes, val] });
     setOutcomeInput("");
+    setErrors((prev) => ({ ...prev, outcomes: "" }));
   }
 
   function removeOutcome(idx: number) {
     patch({ outcomes: draft.outcomes.filter((_, i) => i !== idx) });
+    setErrors((prev) => ({ ...prev, outcomes: "" }));
   }
 
   // ── Submit (mock) ───────────────────────────────────────────────────────────
@@ -349,12 +386,15 @@ export default function CreateMarketForm() {
               type="text"
               value={draft.title}
               onChange={(e) => patch({ title: e.target.value })}
+              onBlur={() => setErrors((prev) => ({ ...prev, title: validateField("title") }))}
               maxLength={MAX_TITLE}
               placeholder="e.g. Will BTC reach $100k by end of 2026?"
               className={inputCls}
+              aria-invalid={!!errors.title}
+              aria-describedby={errors.title ? "title-error" : undefined}
             />
             <div className="flex justify-between">
-              <FieldError msg={errors.title} />
+              <FieldError msg={errors.title} id="title-error" />
               <p className="ml-auto text-xs text-slate-500">{draft.title.length}/{MAX_TITLE}</p>
             </div>
           </div>
@@ -463,17 +503,23 @@ export default function CreateMarketForm() {
                 value={draft.endDate}
                 min={todayStr}
                 onChange={(e) => patch({ endDate: e.target.value })}
+                onBlur={() => setErrors((prev) => ({ ...prev, endDate: validateField("endDate") }))}
                 className={inputCls}
+                aria-invalid={!!errors.endDate}
+                aria-describedby={errors.endDate ? "endDate-error" : undefined}
               />
               <input
                 id="end-clock"
                 type="time"
                 value={draft.endClock}
                 onChange={(e) => patch({ endClock: e.target.value })}
+                onBlur={() => setErrors((prev) => ({ ...prev, endDate: validateField("endDate") }))}
                 className={inputCls}
+                aria-invalid={!!errors.endDate}
+                aria-describedby={errors.endDate ? "endDate-error" : undefined}
               />
             </div>
-            <FieldError msg={errors.endDate} />
+            <FieldError msg={errors.endDate} id="endDate-error" />
           </div>
 
           {/* Resolution date + time */}
@@ -531,6 +577,7 @@ export default function CreateMarketForm() {
                       outcomeMode: mode,
                       outcomes: mode === "binary" ? ["Yes", "No"] : [],
                     });
+                    setErrors((prev) => ({ ...prev, outcomes: "" }));
                   }}
                   className={`flex-1 rounded-2xl border px-4 py-3 text-sm font-medium transition ${
                     draft.outcomeMode === mode
@@ -586,8 +633,11 @@ export default function CreateMarketForm() {
                       value={outcomeInput}
                       onChange={(e) => setOutcomeInput(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addOutcome())}
+                      onBlur={() => setErrors((prev) => ({ ...prev, outcomes: validateField("outcomes") }))}
                       placeholder="Type an outcome…"
                       className="flex-1 rounded-xl border border-white/10 bg-slate-950/90 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
+                      aria-invalid={!!errors.outcomes}
+                      aria-describedby={errors.outcomes ? "outcomes-error" : undefined}
                     />
                     <button
                       type="button"
@@ -599,8 +649,11 @@ export default function CreateMarketForm() {
                     </button>
                   </div>
                 )}
-                <FieldError msg={errors.outcomes} />
+                <FieldError msg={errors.outcomes} id="outcomes-error" />
               </div>
+            )}
+            {draft.outcomeMode === "binary" && (
+              <FieldError msg={errors.outcomes} id="outcomes-error" />
             )}
           </div>
 
