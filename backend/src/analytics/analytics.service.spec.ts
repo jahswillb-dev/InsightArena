@@ -307,14 +307,12 @@ describe('AnalyticsService', () => {
         participant_count: 5,
         outcome_probabilities: [60, 40],
       });
-      expect(qb.andWhere).toHaveBeenCalledWith(
-        'history.recorded_at >= :from',
-        { from },
-      );
-      expect(qb.andWhere).toHaveBeenCalledWith(
-        'history.recorded_at <= :to',
-        { to },
-      );
+      expect(qb.andWhere).toHaveBeenCalledWith('history.recorded_at >= :from', {
+        from,
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith('history.recorded_at <= :to', {
+        to,
+      });
     });
 
     it('should throw NotFoundException for invalid market', async () => {
@@ -327,9 +325,7 @@ describe('AnalyticsService', () => {
           new Date('2026-05-01T00:00:00.000Z'),
           new Date('2026-06-01T00:00:00.000Z'),
         ),
-      ).rejects.toThrow(
-        'Market "invalid" not found',
-      );
+      ).rejects.toThrow('Market "invalid" not found');
     });
   });
 

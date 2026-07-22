@@ -15,6 +15,7 @@ describe('SearchService - Wildcard Escaping Integration', () => {
   let service: SearchService;
   let marketRepository: Repository<Market>;
   let userRepository: Repository<User>;
+  let competitionRepository: Repository<Competition>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -44,6 +45,7 @@ describe('SearchService - Wildcard Escaping Integration', () => {
     service = module.get<SearchService>(SearchService);
     marketRepository = module.get(getRepositoryToken(Market));
     userRepository = module.get(getRepositoryToken(User));
+    competitionRepository = module.get(getRepositoryToken(Competition));
   });
 
   describe('getSuggestions - wildcard escaping', () => {
@@ -173,6 +175,9 @@ describe('SearchService - Wildcard Escaping Integration', () => {
         .mockReturnValue(mockQb as any);
       jest
         .spyOn(userRepository, 'createQueryBuilder')
+        .mockReturnValue(mockQb as any);
+      jest
+        .spyOn(competitionRepository, 'createQueryBuilder')
         .mockReturnValue(mockQb as any);
 
       await service.search({

@@ -29,9 +29,7 @@ function parseIsoDate(value: string): Date | undefined {
 }
 
 @ValidatorConstraint({ name: 'ValidAnalyticsDateRange', async: false })
-export class ValidAnalyticsDateRangeConstraint
-  implements ValidatorConstraintInterface
-{
+export class ValidAnalyticsDateRangeConstraint implements ValidatorConstraintInterface {
   private message = 'Invalid date range';
 
   validate(_value: unknown, args: ValidationArguments): boolean {

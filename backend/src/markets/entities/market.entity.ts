@@ -83,7 +83,6 @@ export class Market {
   @IsBoolean()
   is_paused: boolean;
 
-
   @Column({ type: 'timestamptz', nullable: true })
   @IsOptional()
   featured_at: Date | null;

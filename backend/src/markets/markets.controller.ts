@@ -219,7 +219,6 @@ export class MarketsController {
   @Delete(':id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cancel a prediction market (creator or admin)' })
-
   @ApiResponse({ status: 200, description: 'Market cancelled', type: Market })
   @ApiResponse({
     status: 400,
@@ -264,8 +263,6 @@ export class MarketsController {
   ): Promise<Market> {
     return this.marketsService.resumeMarket(id, user);
   }
-
-
 
   @Post(':id/comments')
   @UseGuards(BanGuard)

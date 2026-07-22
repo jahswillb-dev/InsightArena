@@ -3,8 +3,6 @@ import {
   IsString,
   MinLength,
   MaxLength,
-  Matches,
-  ValidationArguments,
   ValidatorConstraint,
   ValidatorConstraintInterface,
   Validate,
@@ -16,11 +14,11 @@ import { Transform } from 'class-transformer';
  */
 @ValidatorConstraint({ name: 'isNotWhitespaceOnly', async: false })
 export class IsNotWhitespaceOnly implements ValidatorConstraintInterface {
-  validate(text: string, args: ValidationArguments) {
-    return text && text.trim().length > 0;
+  validate(text: string) {
+    return typeof text === 'string' && text.trim().length > 0;
   }
 
-  defaultMessage(args: ValidationArguments) {
+  defaultMessage() {
     return 'Search query cannot be empty or whitespace-only';
   }
 }

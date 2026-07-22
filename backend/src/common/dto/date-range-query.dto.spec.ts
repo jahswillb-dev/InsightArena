@@ -37,9 +37,10 @@ describe('DateRangeQueryDto', () => {
     expect(from.toISOString()).toBe(
       new Date('2026-05-16T12:00:00.000Z').toISOString(),
     );
-    expect(
-      (to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000),
-    ).toBeCloseTo(DEFAULT_DATE_RANGE_DAYS, 5);
+    expect((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000)).toBeCloseTo(
+      DEFAULT_DATE_RANGE_DAYS,
+      5,
+    );
   });
 
   it('accepts a valid explicit range', async () => {

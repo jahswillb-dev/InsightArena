@@ -522,7 +522,9 @@ export class UsersService {
     return { data, total, page, limit };
   }
 
-  async getFollowStats(address: string): Promise<{ followers_count: number; following_count: number }> {
+  async getFollowStats(
+    address: string,
+  ): Promise<{ followers_count: number; following_count: number }> {
     const user = await this.findByAddress(address);
 
     const [, followersCount] = await this.followRepository

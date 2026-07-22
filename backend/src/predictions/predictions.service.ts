@@ -68,7 +68,6 @@ export class PredictionsService {
       );
     }
 
-
     if (!market.outcome_options.includes(dto.chosen_outcome)) {
       throw new BadRequestException(
         `Invalid outcome "${dto.chosen_outcome}". Valid options: ${market.outcome_options.join(', ')}`,

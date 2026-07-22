@@ -58,17 +58,23 @@ describe('SearchQueryDto', () => {
 
     it('rejects an empty string', async () => {
       const errors = await validateDto({ query: '' });
-      expect(errors).toContain('Search query cannot be empty or whitespace-only');
+      expect(errors).toContain(
+        'Search query cannot be empty or whitespace-only',
+      );
     });
 
     it('rejects a whitespace-only query (spaces)', async () => {
       const errors = await validateDto({ query: '   ' });
-      expect(errors).toContain('Search query cannot be empty or whitespace-only');
+      expect(errors).toContain(
+        'Search query cannot be empty or whitespace-only',
+      );
     });
 
     it('rejects a whitespace-only query (tabs and newlines)', async () => {
       const errors = await validateDto({ query: '\t\n\r' });
-      expect(errors).toContain('Search query cannot be empty or whitespace-only');
+      expect(errors).toContain(
+        'Search query cannot be empty or whitespace-only',
+      );
     });
 
     it('rejects a single character after trimming', async () => {
@@ -83,17 +89,13 @@ describe('SearchQueryDto', () => {
     it('rejects a 101-character query', async () => {
       const query = 'a'.repeat(101);
       const errors = await validateDto({ query });
-      expect(errors).toContain(
-        'Search query must not exceed 100 characters',
-      );
+      expect(errors).toContain('Search query must not exceed 100 characters');
     });
 
     it('rejects a 200-character query', async () => {
       const query = 'a'.repeat(200);
       const errors = await validateDto({ query });
-      expect(errors).toContain(
-        'Search query must not exceed 100 characters',
-      );
+      expect(errors).toContain('Search query must not exceed 100 characters');
     });
   });
 

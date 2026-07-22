@@ -15,7 +15,6 @@ import { Prediction } from '../predictions/entities/prediction.entity';
 import { WebhookDispatcherService } from '../webhooks/services/webhook-dispatcher.service';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 
-
 describe('MarketsService - Bulk Creation', () => {
   let service: MarketsService;
   let marketsRepository: jest.Mocked<Repository<Market>>;

@@ -188,8 +188,8 @@ describe('AnalyticsController', () => {
       expect(result).toEqual(mockMarketHistory);
       expect(marketId).toBe('market-123');
       expect(interval).toBeUndefined();
-      expect((to as Date).getTime()).toBeGreaterThanOrEqual(before);
-      expect((to as Date).getTime() - (from as Date).getTime()).toBeCloseTo(
+      expect(to.getTime()).toBeGreaterThanOrEqual(before);
+      expect(to.getTime() - from.getTime()).toBeCloseTo(
         30 * 24 * 60 * 60 * 1000,
         -3,
       );
@@ -226,7 +226,7 @@ describe('AnalyticsController', () => {
       const [, from, to] = service.getMarketHistory.mock.calls.at(-1)!;
 
       expect(result).toEqual(historyWithDefaults);
-      expect((to as Date).getTime() - (from as Date).getTime()).toBeCloseTo(
+      expect(to.getTime() - from.getTime()).toBeCloseTo(
         30 * 24 * 60 * 60 * 1000,
         -3,
       );

@@ -178,7 +178,6 @@ export class SorobanService {
         `Soroban resolveMarket: market=${marketOnChainId} outcome=${outcome}`,
       );
 
-
       // Verify server keypair is valid
       const serverKeypair = Keypair.fromSecret(this.serverSecretKey);
       this.logger.debug(
@@ -551,12 +550,13 @@ export class SorobanService {
   }
 
   async pauseMarket(marketOnChainId: string): Promise<{ tx_hash: string }> {
-
     return this.withSorobanErrorHandling('pauseMarket', () => {
       this.logger.log(`Soroban pauseMarket: market=${marketOnChainId}`);
 
       const serverKeypair = Keypair.fromSecret(this.serverSecretKey);
-      this.logger.debug(`pauseMarket signed by admin: ${serverKeypair.publicKey()}`);
+      this.logger.debug(
+        `pauseMarket signed by admin: ${serverKeypair.publicKey()}`,
+      );
 
       const tx_hash = Buffer.from(`pause:${marketOnChainId}:${Date.now()}`)
         .toString('hex')
@@ -573,7 +573,9 @@ export class SorobanService {
       this.logger.log(`Soroban resumeMarket: market=${marketOnChainId}`);
 
       const serverKeypair = Keypair.fromSecret(this.serverSecretKey);
-      this.logger.debug(`resumeMarket signed by admin: ${serverKeypair.publicKey()}`);
+      this.logger.debug(
+        `resumeMarket signed by admin: ${serverKeypair.publicKey()}`,
+      );
 
       const tx_hash = Buffer.from(`resume:${marketOnChainId}:${Date.now()}`)
         .toString('hex')
@@ -587,7 +589,6 @@ export class SorobanService {
 
   async getEvents(fromLedger: number): Promise<SorobanEventsResponse> {
     return this.withSorobanErrorHandling('getEvents', async () => {
-
       if (!this.rpcUrl || !this.contractId) {
         this.logger.warn(
           'SOROBAN_RPC_URL or SOROBAN_CONTRACT_ID is not configured; skipping event poll',

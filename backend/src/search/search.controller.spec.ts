@@ -1,7 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SearchController } from './search.controller';
 import { SearchService } from './search.service';
-import { GlobalSearchResponseDto, SearchType } from './dto/global-search.dto';
+import {
+  GlobalSearchDto,
+  GlobalSearchResponseDto,
+  SearchType,
+} from './dto/global-search.dto';
+import { SearchQueryDto } from './dto/search-query.dto';
 import { ValidationPipe, BadRequestException } from '@nestjs/common';
 
 describe('SearchController', () => {
@@ -34,7 +39,9 @@ describe('SearchController', () => {
           provide: SearchService,
           useValue: {
             search: jest.fn().mockResolvedValue(mockSearchResponse),
-            getSuggestions: jest.fn().mockResolvedValue(mockSuggestionsResponse),
+            getSuggestions: jest
+              .fn()
+              .mockResolvedValue(mockSuggestionsResponse),
           },
         },
       ],
@@ -74,7 +81,7 @@ describe('SearchController', () => {
       await expect(
         validationPipe.transform(dto, {
           type: 'query',
-          metatype: Object,
+          metatype: GlobalSearchDto,
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -90,7 +97,7 @@ describe('SearchController', () => {
       await expect(
         validationPipe.transform(dto, {
           type: 'query',
-          metatype: Object,
+          metatype: GlobalSearchDto,
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -101,7 +108,7 @@ describe('SearchController', () => {
       await expect(
         validationPipe.transform(dto, {
           type: 'query',
-          metatype: Object,
+          metatype: GlobalSearchDto,
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -112,7 +119,7 @@ describe('SearchController', () => {
       await expect(
         validationPipe.transform(dto, {
           type: 'query',
-          metatype: Object,
+          metatype: GlobalSearchDto,
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -132,7 +139,7 @@ describe('SearchController', () => {
       await expect(
         validationPipe.transform(dto, {
           type: 'query',
-          metatype: Object,
+          metatype: SearchQueryDto,
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -143,7 +150,7 @@ describe('SearchController', () => {
       // This will still be 2 chars, but we're testing that wildcards don't break validation
       const result = await validationPipe.transform(dto, {
         type: 'query',
-        metatype: Object,
+        metatype: SearchQueryDto,
       });
       expect(result.query).toBe('%%');
     });

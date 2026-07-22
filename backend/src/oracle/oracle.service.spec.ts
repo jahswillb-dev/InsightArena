@@ -10,7 +10,6 @@ type MockRepo = jest.Mocked<
   Pick<Repository<any>, 'findOne' | 'createQueryBuilder' | 'find' | 'findByIds'>
 >;
 
-
 function createMockQueryBuilder<T>(
   returnValue: any,
 ): Partial<SelectQueryBuilder<T>> {
@@ -328,8 +327,12 @@ describe('OracleService', () => {
       const zeroQb = makeCountQb(0);
       matchRepo.createQueryBuilder
         .mockReturnValueOnce(zeroQb as unknown as SelectQueryBuilder<any>)
-        .mockReturnValueOnce(makeCountQb(0) as unknown as SelectQueryBuilder<any>)
-        .mockReturnValueOnce(makeCountQb(0) as unknown as SelectQueryBuilder<any>);
+        .mockReturnValueOnce(
+          makeCountQb(0) as unknown as SelectQueryBuilder<any>,
+        )
+        .mockReturnValueOnce(
+          makeCountQb(0) as unknown as SelectQueryBuilder<any>,
+        );
 
       const result = await service.getStats();
 
