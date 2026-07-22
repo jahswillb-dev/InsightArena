@@ -57,6 +57,15 @@ pub enum EventError {
     InvalidEntryFee = 20,
     /// Caller is not the event creator.
     Unauthorized = 21,
+    /// claim_prize / clawback_unclaimed called before the event is finalized.
+    EventNotFinalized = 22,
+    /// claim_prize called for an address with no recorded prize allocation.
+    NoAllocation = 23,
+    /// Second settlement of the same allocation — either a repeat claim, or a
+    /// claim attempted after clawback_unclaimed already swept it.
+    AlreadyClaimed = 24,
+    /// clawback_unclaimed called before the event's claim deadline has passed.
+    ClaimPeriodNotExpired = 25,
 }
 
 impl From<InviteError> for EventError {

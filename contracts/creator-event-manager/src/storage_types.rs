@@ -17,6 +17,10 @@ pub const MAX_DESCRIPTION_LEN: u32 = 1000;
 pub const MAX_TEAM_NAME_LEN: u32 = 100;
 /// Maximum event duration in seconds (90 days)
 pub const MAX_EVENT_DURATION_SECONDS: u64 = 7_776_000;
+/// Duration after `finalize_event` during which a winner may `claim_prize`
+/// their allocation before it becomes eligible for `clawback_unclaimed` to
+/// treasury (#1312).
+pub const CLAIM_PERIOD_SECONDS: u64 = 2_592_000; // 30 days
 /// Valid predicted outcome symbols
 pub const OUTCOME_TEAM_A: &str = "TEAM_A";
 pub const OUTCOME_TEAM_B: &str = "TEAM_B";
@@ -261,6 +265,17 @@ pub enum DataKey {
     /// Vec<StandingEntry> ranked weighted standings snapshot for an event
     /// (event_id). Recomputed on `submit_match_result` and `finalize_event`.
     EventStandings(u64),
+
+    // ── Staged prize claims & clawback (#1312) ───────────────────────────────
+    /// A winner's staged prize allocation for an event  (winner, event_id).
+    /// Written once by `finalize_event`; settled exactly once by either
+    /// `claim_prize` or `clawback_unclaimed`.
+    PrizeAllocation(Address, u64),
+
+    /// Unix timestamp after which unclaimed allocations may be swept to
+    /// treasury via `clawback_unclaimed`  (event_id). Written once by
+    /// `finalize_event`.
+    ClaimDeadline(u64),
 }
 
 // ---------------------------------------------------------------------------
@@ -889,6 +904,40 @@ impl LeaderboardEntry {
         // Compare the addresses directly; Soroban Address implements Ord
         self.user < other.user
     }
+}
+
+// ---------------------------------------------------------------------------
+// PrizeAllocation (#1312)
+// ---------------------------------------------------------------------------
+
+/// A winner's staged prize-pool allocation, recorded by `finalize_event` in
+/// place of an immediate transfer.
+///
+/// Settled exactly once, through either path:
+/// * the winner calls `claim_prize`, transferring `amount` to themselves, or
+/// * anyone calls `clawback_unclaimed` after the event's claim deadline,
+///   sweeping any still-unclaimed allocation to treasury.
+///
+/// `claimed` guards both paths against a second settlement, so a claim
+/// attempted after a clawback (or vice versa) is rejected identically to a
+/// plain double-claim.
+///
+/// Stored under `DataKey::PrizeAllocation(winner, event_id)`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PrizeAllocation {
+    /// Address of the allocated winner
+    pub winner: Address,
+
+    /// Event identifier
+    pub event_id: u64,
+
+    /// XLM amount (in stroops) allocated to this winner
+    pub amount: i128,
+
+    /// `true` once settled — either claimed by the winner or clawed back to
+    /// treasury.
+    pub claimed: bool,
 }
 
 // ---------------------------------------------------------------------------
