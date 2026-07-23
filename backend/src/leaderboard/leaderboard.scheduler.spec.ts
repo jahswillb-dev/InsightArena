@@ -1,10 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { ConfigService } from '@nestjs/config';
 import { LeaderboardScheduler } from './leaderboard.scheduler';
 import { LeaderboardService } from './leaderboard.service';
 
 describe('LeaderboardScheduler', () => {
   let scheduler: LeaderboardScheduler;
   let service: LeaderboardService;
+
+  const mockSchedulerRegistry = {
+    addCronJob: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn((_key: string, defaultValue?: unknown) => defaultValue),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -14,13 +24,24 @@ describe('LeaderboardScheduler', () => {
           provide: LeaderboardService,
           useValue: {
             recalculateRanks: jest.fn(),
+            createRankSnapshot: jest.fn(),
+            pruneSnapshots: jest.fn(),
           },
+        },
+        {
+          provide: SchedulerRegistry,
+          useValue: mockSchedulerRegistry,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
       ],
     }).compile();
 
     scheduler = module.get<LeaderboardScheduler>(LeaderboardScheduler);
     service = module.get<LeaderboardService>(LeaderboardService);
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
@@ -44,6 +65,39 @@ describe('LeaderboardScheduler', () => {
       await expect(
         scheduler.handleHourlyRecalculation(),
       ).resolves.not.toThrow();
+    });
+  });
+
+  describe('onModuleInit', () => {
+    it('should register the rank snapshot cron job using the configured expression', () => {
+      mockConfigService.get.mockReturnValue('*/15 * * * *');
+
+      scheduler.onModuleInit();
+
+      expect(mockConfigService.get).toHaveBeenCalledWith(
+        'LEADERBOARD_SNAPSHOT_CRON',
+        '0 * * * *',
+      );
+      expect(mockSchedulerRegistry.addCronJob).toHaveBeenCalledWith(
+        'leaderboard-rank-snapshot',
+        expect.anything(),
+      );
+    });
+  });
+
+  describe('handleRankSnapshot', () => {
+    it('should create a snapshot then prune old ones', async () => {
+      const createSpy = jest
+        .spyOn(service, 'createRankSnapshot')
+        .mockResolvedValue();
+      const pruneSpy = jest
+        .spyOn(service, 'pruneSnapshots')
+        .mockResolvedValue();
+
+      await scheduler.handleRankSnapshot();
+
+      expect(createSpy).toHaveBeenCalled();
+      expect(pruneSpy).toHaveBeenCalled();
     });
   });
 });
