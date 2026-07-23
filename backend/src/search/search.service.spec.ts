@@ -166,7 +166,7 @@ describe('SearchService', () => {
         page: 1,
         limit: 999,
       };
-      await service.search(dto);
+      const result = await service.search(dto);
 
       // The service slices results to min(dto.limit, 50) via mapXxxWithScore
       expect(result).toBeDefined();
