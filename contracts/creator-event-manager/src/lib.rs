@@ -811,8 +811,67 @@ impl CreatorEventManagerContract {
     ///
     /// Returns the `(address, amount)` vector recorded by `finalize_event`, or
     /// an empty vector if the event has not been finalized (or does not exist).
+    /// Note this reflects staged *allocations*, not necessarily transferred
+    /// funds — see `claim_prize` / `clawback_unclaimed` (#1312).
     pub fn get_event_payouts(env: Env, event_id: u64) -> Vec<(Address, i128)> {
         finalize::get_event_payouts(&env, event_id)
+    }
+
+    /// Claim a winner's staged prize allocation from a finalized event (#1312).
+    ///
+    /// `finalize_event` stages per-winner allocations instead of transferring
+    /// them immediately; this transfers `winner`'s allocation to them exactly
+    /// once. Only `winner` may claim their own allocation.
+    ///
+    /// Returns the claimed amount (in stroops).
+    ///
+    /// # Panics
+    /// * `"contract_paused"` — the contract is paused.
+    /// * `"event_not_found"` — no event exists with the given ID.
+    /// * `"event_not_finalized"` — the event has not been finalized yet.
+    /// * `"no_allocation"` — `winner` has no recorded allocation for this event.
+    /// * `"already_claimed"` — the allocation was already claimed, or already
+    ///   swept to treasury by `clawback_unclaimed`.
+    /// * `"transfer_failed"` — the payout transfer failed.
+    pub fn claim_prize(env: Env, winner: Address, event_id: u64) -> i128 {
+        match finalize::claim_prize(&env, winner, event_id) {
+            Ok(amount) => amount,
+            Err(EventError::Paused) => panic!("contract_paused"),
+            Err(EventError::EventNotFound) => panic!("event_not_found"),
+            Err(EventError::EventNotFinalized) => panic!("event_not_finalized"),
+            Err(EventError::NoAllocation) => panic!("no_allocation"),
+            Err(EventError::AlreadyClaimed) => panic!("already_claimed"),
+            Err(EventError::TransferFailed) => panic!("transfer_failed"),
+            Err(_) => panic!("unexpected_error"),
+        }
+    }
+
+    /// Sweep unclaimed prize allocations for a finalized event to treasury,
+    /// once the claim deadline has passed (#1312).
+    ///
+    /// Permissionless — anyone may trigger the sweep once the deadline has
+    /// passed, but they must authorize the call. Allocations already claimed
+    /// by their winner are left untouched. Safe to call repeatedly: once every
+    /// allocation is settled, further calls are a no-op that return `0`.
+    ///
+    /// Returns the total amount swept to treasury.
+    ///
+    /// # Panics
+    /// * `"contract_paused"` — the contract is paused.
+    /// * `"event_not_found"` — no event exists with the given ID.
+    /// * `"event_not_finalized"` — the event has not been finalized yet.
+    /// * `"claim_period_not_expired"` — the claim deadline has not passed yet.
+    /// * `"transfer_failed"` — the sweep transfer failed.
+    pub fn clawback_unclaimed(env: Env, caller: Address, event_id: u64) -> i128 {
+        match finalize::clawback_unclaimed(&env, caller, event_id) {
+            Ok(amount) => amount,
+            Err(EventError::Paused) => panic!("contract_paused"),
+            Err(EventError::EventNotFound) => panic!("event_not_found"),
+            Err(EventError::EventNotFinalized) => panic!("event_not_finalized"),
+            Err(EventError::ClaimPeriodNotExpired) => panic!("claim_period_not_expired"),
+            Err(EventError::TransferFailed) => panic!("transfer_failed"),
+            Err(_) => panic!("unexpected_error"),
+        }
     }
 
     /// Check whether an event is finalized.

@@ -1,10 +1,14 @@
-//! Prize-pool finalization (#... finalize_event).
+//! Prize-pool finalization, staged claims, and no-show clawback (#1312).
 //!
 //! Once an event has ended and every match is resolved, [`finalize_event`]
-//! ranks participants, splits the escrowed prize pool according to the event's
-//! `reward_distribution`, and pays the top-N addresses. It is **permissionless**:
-//! anyone may call it (it simply triggers the payout once all conditions are
-//! met), mirroring the old `verify_event_winners` entry point.
+//! ranks participants and splits the escrowed prize pool according to the
+//! event's `reward_distribution` — but instead of transferring winnings
+//! immediately, it records a per-winner [`PrizeAllocation`] with a claim
+//! deadline. Winners settle their own allocation via [`claim_prize`]; any
+//! allocation still unclaimed once the deadline passes may be swept to
+//! treasury via [`clawback_unclaimed`]. `finalize_event` remains
+//! **permissionless**: anyone may call it once all conditions are met,
+//! mirroring the old `verify_event_winners` entry point.
 
 use soroban_sdk::{Address, Env, Symbol, Vec};
 
@@ -12,14 +16,14 @@ use crate::admin;
 use crate::event::{self, EventError};
 use crate::leaderboard;
 use crate::storage::{self, TTL_LEDGERS};
-use crate::storage_types::DataKey;
+use crate::storage_types::{DataKey, PrizeAllocation, CLAIM_PERIOD_SECONDS};
 use crate::token::TokenHelper;
 
 // ---------------------------------------------------------------------------
 // finalize_event
 // ---------------------------------------------------------------------------
 
-/// Rank participants, split the prize pool, and pay out the top-N addresses.
+/// Rank participants, split the prize pool, and stage per-winner allocations.
 ///
 /// `caller.require_auth()` is enforced but the call is otherwise permissionless:
 /// anyone may finalize an event once its conditions are met.
@@ -42,20 +46,25 @@ use crate::token::TokenHelper;
 ///
 /// For each paid rank `i` in `0..n.min(leaderboard.len())` (where
 /// `n = reward_distribution.len()`):
-/// `amount = prize_pool * reward_distribution[i] / 100`, transferred to
-/// `leaderboard[i].user`.
+/// `amount = prize_pool * reward_distribution[i] / 100`. Rather than
+/// transferring this amount immediately, a [`PrizeAllocation`] is recorded
+/// under [`DataKey::PrizeAllocation`] for `leaderboard[i].user` — the winner
+/// must call [`claim_prize`] to receive it. This is what enables
+/// [`clawback_unclaimed`] to reclaim allocations nobody ever claims.
 ///
 /// Any leftover — the unallocated percentage when there are fewer participants
 /// than reward ranks, plus integer-division dust — is sent to `event.creator`
-/// in a single transfer (`prize_pool - total_distributed`). With zero
-/// participants the entire prize pool is refunded to the creator. After this
-/// call no XLM is left stranded in the contract.
+/// immediately, in a single transfer (`prize_pool - total_distributed`). With
+/// zero participants the entire prize pool is refunded to the creator. This
+/// creator refund is not staged: only winner allocations go through
+/// claim/clawback.
 ///
 /// On success the event is marked `is_finalized`, the payout vector is stored
-/// under [`DataKey::EventPayouts`] for historical queries, a
-/// `(event, finalized)` event is emitted with
-/// `(event_id, winners_paid, total_distributed)`, and the payout vector is
-/// returned.
+/// under [`DataKey::EventPayouts`] for historical queries, the claim deadline
+/// (`now + CLAIM_PERIOD_SECONDS`) is stored under [`DataKey::ClaimDeadline`],
+/// a `(event, finalized)` event is emitted with
+/// `(event_id, winners_paid, total_distributed)`, and the payout vector
+/// (allocated amounts, not yet transferred) is returned.
 pub fn finalize_event(
     env: &Env,
     caller: Address,
@@ -128,11 +137,18 @@ pub fn finalize_event(
         let entry = leaderboard.get(i).unwrap();
         let amount = prize_pool * percent as i128 / 100;
 
-        // Skip zero-value transfers (the token client rejects amount <= 0), but
-        // still record the rank so the snapshot reflects every paid position.
+        // Skip zero-value allocations (nothing to claim), but still record
+        // the rank so the snapshot reflects every paid position.
         if amount > 0 {
-            TokenHelper::distribute_winnings(env, &xlm_token, &entry.user, amount)
-                .map_err(|_| EventError::TransferFailed)?;
+            storage::set_prize_allocation(
+                env,
+                &PrizeAllocation {
+                    winner: entry.user.clone(),
+                    event_id,
+                    amount,
+                    claimed: false,
+                },
+            );
             total_distributed += amount;
         }
 
@@ -158,12 +174,147 @@ pub fn finalize_event(
         .persistent()
         .extend_ttl(&payouts_key, TTL_LEDGERS, TTL_LEDGERS);
 
+    // Winners have from now until this deadline to claim_prize before their
+    // allocation becomes eligible for clawback_unclaimed.
+    storage::set_claim_deadline(env, event_id, now + CLAIM_PERIOD_SECONDS);
+
     env.events().publish(
         (Symbol::new(env, "event"), Symbol::new(env, "finalized")),
         (event_id, payouts.len(), total_distributed),
     );
 
     Ok(payouts)
+}
+
+// ---------------------------------------------------------------------------
+// claim_prize (#1312)
+// ---------------------------------------------------------------------------
+
+/// Claim a winner's staged prize allocation from a finalized event.
+///
+/// Transfers the winner's [`PrizeAllocation::amount`] to `winner` exactly
+/// once. Requires `winner.require_auth()` — only the allocated winner may
+/// claim their own allocation.
+///
+/// # Checks (in order)
+/// 1. Contract not paused ([`EventError::Paused`]).
+/// 2. Event exists ([`EventError::EventNotFound`]).
+/// 3. Event is finalized ([`EventError::EventNotFinalized`]).
+/// 4. `winner` has a recorded allocation ([`EventError::NoAllocation`]).
+/// 5. The allocation has not already been settled — by an earlier
+///    `claim_prize` call or by `clawback_unclaimed`
+///    ([`EventError::AlreadyClaimed`]).
+///
+/// On success, marks the allocation `claimed`, transfers the funds, emits a
+/// `(prize, claimed)` event with `(event_id, winner, amount)`, and returns
+/// the claimed amount.
+pub fn claim_prize(env: &Env, winner: Address, event_id: u64) -> Result<i128, EventError> {
+    winner.require_auth();
+
+    if admin::is_paused(env) {
+        return Err(EventError::Paused);
+    }
+
+    let event = event::get_event(env, event_id)?;
+    if !event.is_finalized {
+        return Err(EventError::EventNotFinalized);
+    }
+
+    let mut allocation =
+        storage::get_prize_allocation(env, event_id, &winner).ok_or(EventError::NoAllocation)?;
+
+    if allocation.claimed {
+        return Err(EventError::AlreadyClaimed);
+    }
+
+    let xlm_token = admin::get_xlm_token(env).unwrap_or_else(|| panic!("not_initialized"));
+    TokenHelper::distribute_winnings(env, &xlm_token, &winner, allocation.amount)
+        .map_err(|_| EventError::TransferFailed)?;
+
+    allocation.claimed = true;
+    storage::set_prize_allocation(env, &allocation);
+
+    env.events().publish(
+        (Symbol::new(env, "prize"), Symbol::new(env, "claimed")),
+        (event_id, winner, allocation.amount),
+    );
+
+    Ok(allocation.amount)
+}
+
+// ---------------------------------------------------------------------------
+// clawback_unclaimed (#1312)
+// ---------------------------------------------------------------------------
+
+/// Sweep every still-unclaimed prize allocation for a finalized event to
+/// treasury, once the event's claim deadline has passed.
+///
+/// Permissionless — like `finalize_event`, anyone may trigger the sweep, but
+/// they must authorize the call. Only allocations with `claimed == false` are
+/// swept; allocations already claimed by their winner are left untouched.
+/// Calling this again after a full sweep is a harmless no-op (every
+/// allocation is already `claimed`, so nothing more moves).
+///
+/// # Checks (in order)
+/// 1. Contract not paused ([`EventError::Paused`]).
+/// 2. Event exists ([`EventError::EventNotFound`]).
+/// 3. Event is finalized ([`EventError::EventNotFinalized`]).
+/// 4. The claim deadline has passed — `now >= claim_deadline`
+///    ([`EventError::ClaimPeriodNotExpired`]).
+///
+/// Returns the total amount swept to treasury (`0` if nothing was
+/// unclaimed).
+pub fn clawback_unclaimed(env: &Env, caller: Address, event_id: u64) -> Result<i128, EventError> {
+    caller.require_auth();
+
+    if admin::is_paused(env) {
+        return Err(EventError::Paused);
+    }
+
+    let event = event::get_event(env, event_id)?;
+    if !event.is_finalized {
+        return Err(EventError::EventNotFinalized);
+    }
+
+    let deadline = storage::get_claim_deadline(env, event_id).unwrap_or(u64::MAX);
+    let now = env.ledger().timestamp();
+    if now < deadline {
+        return Err(EventError::ClaimPeriodNotExpired);
+    }
+
+    let treasury = admin::get_treasury(env).unwrap_or_else(|| panic!("not_initialized"));
+    let xlm_token = admin::get_xlm_token(env).unwrap_or_else(|| panic!("not_initialized"));
+
+    let payouts = get_event_payouts(env, event_id);
+    let mut swept: i128 = 0;
+
+    for (winner, amount) in payouts.iter() {
+        if amount <= 0 {
+            continue;
+        }
+        let mut allocation = match storage::get_prize_allocation(env, event_id, &winner) {
+            Some(a) => a,
+            None => continue,
+        };
+        if allocation.claimed {
+            continue;
+        }
+        allocation.claimed = true;
+        storage::set_prize_allocation(env, &allocation);
+        swept += allocation.amount;
+    }
+
+    if swept > 0 {
+        TokenHelper::distribute_winnings(env, &xlm_token, &treasury, swept)
+            .map_err(|_| EventError::TransferFailed)?;
+    }
+
+    env.events().publish(
+        (Symbol::new(env, "prize"), Symbol::new(env, "clawed_back")),
+        (event_id, swept),
+    );
+
+    Ok(swept)
 }
 
 // ---------------------------------------------------------------------------

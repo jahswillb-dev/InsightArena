@@ -8,7 +8,9 @@
 /// the returned ID immediately.
 use soroban_sdk::{Address, Env, Vec};
 
-use crate::storage_types::{DataKey, Event, Match, ParticipantScore, Prediction, StandingEntry};
+use crate::storage_types::{
+    DataKey, Event, Match, ParticipantScore, Prediction, PrizeAllocation, StandingEntry,
+};
 
 // ---------------------------------------------------------------------------
 // TTL constant
@@ -268,11 +270,7 @@ pub fn add_event_participant(env: &Env, event_id: u64, participant: &Address) {
 
 /// Read a participant's stored weighted score components, or `None` if the
 /// participant has never been scored for this event.
-pub fn get_participant_score(
-    env: &Env,
-    event_id: u64,
-    user: &Address,
-) -> Option<ParticipantScore> {
+pub fn get_participant_score(env: &Env, event_id: u64, user: &Address) -> Option<ParticipantScore> {
     let key = DataKey::ParticipantScore(user.clone(), event_id);
     match env
         .storage()
@@ -321,6 +319,62 @@ pub fn get_event_standings(env: &Env, event_id: u64) -> Vec<StandingEntry> {
 pub fn set_event_standings(env: &Env, event_id: u64, standings: &Vec<StandingEntry>) {
     let key = DataKey::EventStandings(event_id);
     env.storage().persistent().set(&key, standings);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, TTL_LEDGERS, TTL_LEDGERS);
+}
+
+// ---------------------------------------------------------------------------
+// Staged prize claims & clawback helpers (#1312)
+// ---------------------------------------------------------------------------
+
+/// Read a winner's staged prize allocation for an event, or `None` if this
+/// winner was never allocated a prize for the event.
+pub fn get_prize_allocation(env: &Env, event_id: u64, winner: &Address) -> Option<PrizeAllocation> {
+    let key = DataKey::PrizeAllocation(winner.clone(), event_id);
+    match env
+        .storage()
+        .persistent()
+        .get::<DataKey, PrizeAllocation>(&key)
+    {
+        Some(allocation) => {
+            env.storage()
+                .persistent()
+                .extend_ttl(&key, TTL_LEDGERS, TTL_LEDGERS);
+            Some(allocation)
+        }
+        None => None,
+    }
+}
+
+/// Write a winner's prize allocation and set its TTL.
+pub fn set_prize_allocation(env: &Env, allocation: &PrizeAllocation) {
+    let key = DataKey::PrizeAllocation(allocation.winner.clone(), allocation.event_id);
+    env.storage().persistent().set(&key, allocation);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, TTL_LEDGERS, TTL_LEDGERS);
+}
+
+/// Read an event's claim deadline, or `None` if the event has not been
+/// finalized yet (no deadline has been recorded).
+pub fn get_claim_deadline(env: &Env, event_id: u64) -> Option<u64> {
+    let key = DataKey::ClaimDeadline(event_id);
+    match env.storage().persistent().get::<DataKey, u64>(&key) {
+        Some(deadline) => {
+            env.storage()
+                .persistent()
+                .extend_ttl(&key, TTL_LEDGERS, TTL_LEDGERS);
+            Some(deadline)
+        }
+        None => None,
+    }
+}
+
+/// Write an event's claim deadline and set its TTL.
+pub fn set_claim_deadline(env: &Env, event_id: u64, deadline: u64) {
+    let key = DataKey::ClaimDeadline(event_id);
+    env.storage().persistent().set(&key, &deadline);
     env.storage()
         .persistent()
         .extend_ttl(&key, TTL_LEDGERS, TTL_LEDGERS);

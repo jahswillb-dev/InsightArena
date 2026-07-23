@@ -210,10 +210,22 @@ fn test_finalize_event_distributes_top5_split() {
         let (addr, amount) = payouts.get(i as u32).unwrap();
         assert_eq!(addr, *user);
         assert_eq!(amount, expected[i]);
+        // Allocations are staged, not transferred, until claim_prize is called.
+        assert_eq!(balance(&env, &xlm_token, user), 0);
+    }
+
+    // Full pool staged in the contract; nothing refunded to the creator.
+    assert_eq!(balance(&env, &xlm_token, &contract_id), PRIZE);
+    assert_eq!(balance(&env, &xlm_token, &creator), 0);
+
+    // Each winner claims their own allocation exactly once.
+    for (i, user) in users.iter().enumerate() {
+        let claimed = client.claim_prize(user, &event_id);
+        assert_eq!(claimed, expected[i]);
         assert_eq!(balance(&env, &xlm_token, user), expected[i]);
     }
 
-    // Full pool distributed: nothing left in the contract, nothing refunded.
+    // Full pool distributed: nothing left in the contract.
     assert_eq!(balance(&env, &xlm_token, &contract_id), 0);
     assert_eq!(balance(&env, &xlm_token, &creator), 0);
 
@@ -366,10 +378,19 @@ fn test_finalize_event_fewer_participants_than_ranks_refunds_creator() {
     let refund = PRIZE - rank1 - rank2; // 30% (ranks 3-5) back to creator
 
     assert_eq!(payouts.len(), 2);
+    // Winner allocations are staged; the creator's refund is unaffected and
+    // still transfers immediately at finalize.
+    assert_eq!(balance(&env, &xlm_token, &user1), 0);
+    assert_eq!(balance(&env, &xlm_token, &user2), 0);
+    assert_eq!(balance(&env, &xlm_token, &creator), refund);
+    // Only the two staged allocations remain in the contract.
+    assert_eq!(balance(&env, &xlm_token, &contract_id), rank1 + rank2);
+
+    assert_eq!(client.claim_prize(&user1, &event_id), rank1);
+    assert_eq!(client.claim_prize(&user2, &event_id), rank2);
     assert_eq!(balance(&env, &xlm_token, &user1), rank1);
     assert_eq!(balance(&env, &xlm_token, &user2), rank2);
-    assert_eq!(balance(&env, &xlm_token, &creator), refund);
-    // Nothing stranded.
+    // Nothing stranded once both winners have claimed.
     assert_eq!(balance(&env, &xlm_token, &contract_id), 0);
 }
 
@@ -450,16 +471,29 @@ fn test_finalize_event_integer_division_dust_refunded_to_creator() {
     let expected_dust = prize_pool - expected_rank1 - expected_rank2; // 1
 
     assert_eq!(payouts.len(), 2);
-    assert_eq!(balance(&env, &xlm_token, &user1), expected_rank1);
-    assert_eq!(balance(&env, &xlm_token, &user2), expected_rank2);
+    // Winner allocations are staged, not yet transferred.
+    assert_eq!(balance(&env, &xlm_token, &user1), 0);
+    assert_eq!(balance(&env, &xlm_token, &user2), 0);
 
-    // Creator gets the dust (plus any refund from unallocated percentage).
+    // Creator gets the dust immediately (plus any refund from unallocated
+    // percentage) — the creator refund is not staged.
     assert_eq!(
         balance(&env, &xlm_token, &creator),
         creator_balance_before + expected_dust,
     );
 
-    // Contract is empty — nothing stranded.
+    // Contract still holds the two staged allocations.
+    assert_eq!(
+        balance(&env, &xlm_token, &contract_id),
+        expected_rank1 + expected_rank2
+    );
+
+    assert_eq!(client.claim_prize(&user1, &event_id), expected_rank1);
+    assert_eq!(client.claim_prize(&user2, &event_id), expected_rank2);
+    assert_eq!(balance(&env, &xlm_token, &user1), expected_rank1);
+    assert_eq!(balance(&env, &xlm_token, &user2), expected_rank2);
+
+    // Contract is empty — nothing stranded once both winners have claimed.
     assert_eq!(balance(&env, &xlm_token, &contract_id), 0);
 
     // Total outflows equal the full prize pool.
@@ -611,6 +645,12 @@ fn test_finalize_event_permissionless() {
     let payouts = client.finalize_event(&random_caller, &event_id);
 
     assert_eq!(payouts.len(), 1);
+    // Allocation staged, not yet transferred.
+    assert_eq!(balance(&env, &xlm_token, &user), 0);
+    assert_eq!(balance(&env, &xlm_token, &contract_id), PRIZE);
+
+    // The winner (or anyone, on the winner's behalf via auth) claims.
+    assert_eq!(client.claim_prize(&user, &event_id), PRIZE);
     assert_eq!(balance(&env, &xlm_token, &user), PRIZE);
     assert_eq!(balance(&env, &xlm_token, &contract_id), 0);
 }
@@ -707,18 +747,28 @@ fn test_finalize_event_seed_pool_plus_entry_fees_combined() {
 
     assert_eq!(payouts.len(), 2);
 
-    // Verify token balances for each winner numerically.
-    assert_eq!(balance(&env, &xlm_token, &user1), expected_rank1);
-    assert_eq!(balance(&env, &xlm_token, &user2), expected_rank2);
-    // user3 paid the entry fee and scored 0 pts — receives no prize.
+    // Allocations are staged until claimed.
+    assert_eq!(balance(&env, &xlm_token, &user1), 0);
+    assert_eq!(balance(&env, &xlm_token, &user2), 0);
+    // user3 paid the entry fee and scored 0 pts — receives no allocation.
     assert_eq!(balance(&env, &xlm_token, &user3), 0);
 
-    // Integer-division remainder goes to creator, not lost.
+    // Integer-division remainder goes to creator immediately, not lost.
     assert_eq!(balance(&env, &xlm_token, &creator), expected_dust);
 
     // Total distributed equals seed_pool + N × entry_fee.
     let total_out = expected_rank1 + expected_rank2 + expected_dust;
     assert_eq!(total_out, total_pool);
+    assert_eq!(
+        balance(&env, &xlm_token, &contract_id),
+        expected_rank1 + expected_rank2
+    );
+
+    // Winners claim their staged allocations.
+    assert_eq!(client.claim_prize(&user1, &event_id), expected_rank1);
+    assert_eq!(client.claim_prize(&user2, &event_id), expected_rank2);
+    assert_eq!(balance(&env, &xlm_token, &user1), expected_rank1);
+    assert_eq!(balance(&env, &xlm_token, &user2), expected_rank2);
     assert_eq!(balance(&env, &xlm_token, &contract_id), 0);
 
     assert!(client.get_event(&event_id).is_finalized);
