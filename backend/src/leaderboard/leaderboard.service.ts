@@ -6,12 +6,17 @@ import {
   LessThan,
   IsNull,
   MoreThanOrEqual,
+  LessThanOrEqual,
+  Between,
+  FindOptionsWhere,
 } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Cache } from 'cache-manager';
 import { LeaderboardEntry } from './entities/leaderboard-entry.entity';
 import { LeaderboardHistory } from './entities/leaderboard-history.entity';
+import { LeaderboardSnapshot } from './entities/leaderboard-snapshot.entity';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
 import {
@@ -25,6 +30,10 @@ import {
   PaginatedLeaderboardHistoryResponse,
 } from './dto/leaderboard-history.dto';
 import { UserRankDto } from './dto/user-rank.dto';
+import {
+  RankHistoryQueryDto,
+  RankHistoryResponse,
+} from './dto/rank-history.dto';
 import {
   CursorPaginationDto,
   PaginatedCursorResponse,
@@ -42,9 +51,12 @@ export class LeaderboardService {
     private readonly leaderboardRepository: Repository<LeaderboardEntry>,
     @InjectRepository(LeaderboardHistory)
     private readonly historyRepository: Repository<LeaderboardHistory>,
+    @InjectRepository(LeaderboardSnapshot)
+    private readonly snapshotRepository: Repository<LeaderboardSnapshot>,
     private readonly usersService: UsersService,
     private readonly seasonsService: SeasonsService,
     private readonly dataSource: DataSource,
+    private readonly configService: ConfigService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
@@ -71,6 +83,11 @@ export class LeaderboardService {
 
     const [entries, total] = await qb.getManyAndCount();
 
+    const priorRanks = await this.getLatestSnapshotRanks(
+      entries.map((entry) => entry.user_id),
+      query.season_id,
+    );
+
     const data: LeaderboardEntryResponse[] = entries.map((entry) => {
       const accuracyRate =
         entry.total_predictions > 0
@@ -79,6 +96,8 @@ export class LeaderboardService {
               100
             ).toFixed(1)
           : '0.0';
+
+      const priorRank = priorRanks.get(entry.user_id);
 
       return {
         rank: entry.rank,
@@ -89,10 +108,41 @@ export class LeaderboardService {
         accuracy_rate: accuracyRate,
         total_winnings_stroops: entry.total_winnings_stroops,
         season_points: entry.season_points,
+        rank_delta: priorRank !== undefined ? priorRank - entry.rank : null,
       };
     });
 
     return { data, total, page, limit };
+  }
+
+  /**
+   * Fetch each user's rank from their most recent snapshot prior to now,
+   * scoped to the same season as the query. Users with no snapshot yet are
+   * simply absent from the returned map (surfaced as a null rank_delta).
+   */
+  private async getLatestSnapshotRanks(
+    userIds: string[],
+    seasonId?: string,
+  ): Promise<Map<string, number>> {
+    if (userIds.length === 0) {
+      return new Map();
+    }
+
+    const qb = this.snapshotRepository
+      .createQueryBuilder('snap')
+      .distinctOn(['snap.user_id'])
+      .where('snap.user_id IN (:...userIds)', { userIds })
+      .orderBy('snap.user_id')
+      .addOrderBy('snap.captured_at', 'DESC');
+
+    if (seasonId) {
+      qb.andWhere('snap.season_id = :seasonId', { seasonId });
+    } else {
+      qb.andWhere('snap.season_id IS NULL');
+    }
+
+    const latest = await qb.getMany();
+    return new Map(latest.map((snapshot) => [snapshot.user_id, snapshot.rank]));
   }
 
   async getTopLeaderboard(limit: number): Promise<LeaderboardEntryResponse[]> {
@@ -586,5 +636,105 @@ export class LeaderboardService {
       reputation_score: h.reputation_score,
       season_points: h.season_points,
     }));
+  }
+
+  /**
+   * Persist a rank/score snapshot for every current leaderboard entry
+   * (all-time and per-season). Called on the configurable snapshot cadence.
+   */
+  async createRankSnapshot(): Promise<void> {
+    const start = Date.now();
+    const capturedAt = new Date();
+
+    const entries = await this.leaderboardRepository.find();
+    if (entries.length === 0) {
+      return;
+    }
+
+    const snapshots = entries.map((entry) =>
+      this.snapshotRepository.create({
+        user_id: entry.user_id,
+        season_id: entry.season_id ?? null,
+        captured_at: capturedAt,
+        rank: entry.rank,
+        score: entry.season_id ? entry.season_points : entry.reputation_score,
+      }),
+    );
+
+    await this.snapshotRepository.save(snapshots);
+
+    const elapsed = Date.now() - start;
+    this.logger.log(
+      `Leaderboard rank snapshot complete: ${snapshots.length} entries saved in ${elapsed}ms`,
+    );
+  }
+
+  /**
+   * Delete rank snapshots older than the configured retention window.
+   */
+  async pruneSnapshots(): Promise<void> {
+    const retentionDays = this.configService.get<number>(
+      'LEADERBOARD_SNAPSHOT_RETENTION_DAYS',
+      30,
+    );
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+
+    const { affected } = await this.snapshotRepository.delete({
+      captured_at: LessThan(cutoff),
+    });
+
+    if (affected) {
+      this.logger.log(
+        `Pruned ${affected} leaderboard snapshot(s) older than ${retentionDays}d`,
+      );
+    }
+  }
+
+  /**
+   * Get a user's rank/score history over a time range. rank_delta is the
+   * signed change vs. the previous point in the range (null for the first).
+   */
+  async getRankHistory(
+    address: string,
+    query: RankHistoryQueryDto,
+  ): Promise<RankHistoryResponse> {
+    const user = await this.usersService.findByAddress(address);
+    if (!user) {
+      throw new NotFoundException(`User with address ${address} not found`);
+    }
+
+    const where: FindOptionsWhere<LeaderboardSnapshot> = {
+      user_id: user.id,
+      season_id: query.season_id ?? IsNull(),
+    };
+
+    if (query.from && query.to) {
+      where.captured_at = Between(new Date(query.from), new Date(query.to));
+    } else if (query.from) {
+      where.captured_at = MoreThanOrEqual(new Date(query.from));
+    } else if (query.to) {
+      where.captured_at = LessThanOrEqual(new Date(query.to));
+    }
+
+    const snapshots = await this.snapshotRepository.find({
+      where,
+      order: { captured_at: 'ASC' },
+    });
+
+    let previousRank: number | null = null;
+    const data = snapshots.map((snapshot) => {
+      const rankDelta =
+        previousRank !== null ? previousRank - snapshot.rank : null;
+      previousRank = snapshot.rank;
+
+      return {
+        captured_at: snapshot.captured_at,
+        rank: snapshot.rank,
+        score: snapshot.score,
+        rank_delta: rankDelta,
+      };
+    });
+
+    return { user_id: user.id, data };
   }
 }

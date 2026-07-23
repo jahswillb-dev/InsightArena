@@ -39,6 +39,11 @@ export interface LeaderboardEntryResponse {
   accuracy_rate: string;
   total_winnings_stroops: string;
   season_points?: number;
+  /**
+   * Signed change vs. the most recent prior snapshot (positive = moved up in rank).
+   * Null when the user has no prior snapshot yet.
+   */
+  rank_delta?: number | null;
 }
 
 export interface PaginatedLeaderboardResponse {
