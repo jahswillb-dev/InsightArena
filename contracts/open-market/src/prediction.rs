@@ -1,4 +1,4 @@
-use soroban_sdk::{symbol_short, Address, Env, Symbol, Vec};
+use soroban_sdk::{symbol_short, Address, Env, Map, Symbol, Vec};
 
 use crate::config::{self, PERSISTENT_BUMP, PERSISTENT_THRESHOLD};
 use crate::errors::InsightArenaError;
@@ -595,6 +595,17 @@ pub fn claim_payout(
 /// Batch distribute payouts for all unclaimed winning predictions in a resolved
 /// market. Callable only by admin or oracle.
 ///
+/// Iterates the market's predictor list and pays every winning prediction that
+/// has not been claimed yet. Losing predictions, predictions already claimed
+/// (individually via `claim_payout` or by a previous batch), and duplicate
+/// list entries are skipped without aborting the batch. Payout amounts are
+/// identical to what `claim_payout` would pay: the winning pool is computed
+/// over every winning stake — including already-claimed ones, whose records
+/// live in temporary storage — so entitlements do not depend on claim order,
+/// and each unique address is counted once.
+///
+/// At most 25 payouts are processed per invocation; call again to continue.
+///
 /// Returns the number of payouts processed in this invocation.
 pub fn batch_distribute_payouts(
     env: &Env,
@@ -624,18 +635,45 @@ pub fn batch_distribute_payouts(
         .clone()
         .ok_or(InsightArenaError::MarketNotResolved)?;
 
-    let predictions = list_market_predictions(env, market_id);
-    if predictions.is_empty() {
+    // Read the predictor list directly rather than via list_market_predictions:
+    // claimed predictions move to temporary storage, and the pool math below
+    // must see them (exactly as claim_payout does) or an already-claimed
+    // winning stake would be miscounted as loser pool and inflate the
+    // remaining winners' payouts.
+    let predictors: Vec<Address> = env
+        .storage()
+        .persistent()
+        .get(&DataKey::PredictorList(market_id))
+        .unwrap_or_else(|| Vec::new(env));
+
+    if predictors.is_empty() {
         emit_batch_payout_complete(env, market_id, &caller, 0);
         return Ok(0);
     }
+    bump_predictor_list(env, market_id);
 
+    // Each unique address contributes its winning stake exactly once, no
+    // matter how many times it appears in the list.
+    let mut seen: Map<Address, bool> = Map::new(env);
     let mut winning_pool: i128 = 0;
-    for prediction in predictions.iter() {
-        if prediction.chosen_outcome == resolved_outcome {
-            winning_pool = winning_pool
-                .checked_add(prediction.stake_amount)
-                .ok_or(InsightArenaError::Overflow)?;
+    for address in predictors.iter() {
+        if seen.contains_key(address.clone()) {
+            continue;
+        }
+        seen.set(address.clone(), true);
+
+        let key = DataKey::Prediction(market_id, address.clone());
+        if let Some(item) = env
+            .storage()
+            .persistent()
+            .get::<DataKey, Prediction>(&key)
+            .or_else(|| env.storage().temporary().get::<DataKey, Prediction>(&key))
+        {
+            if item.chosen_outcome == resolved_outcome {
+                winning_pool = winning_pool
+                    .checked_add(item.stake_amount)
+                    .ok_or(InsightArenaError::Overflow)?;
+            }
         }
     }
 
@@ -652,23 +690,28 @@ pub fn batch_distribute_payouts(
     const MAX_BATCH_PAYOUTS: u32 = 25;
     let mut processed: u32 = 0;
 
-    for prediction in predictions.iter() {
+    for address in predictors.iter() {
         if processed >= MAX_BATCH_PAYOUTS {
             break;
         }
 
-        if prediction.chosen_outcome != resolved_outcome || prediction.payout_claimed {
-            continue;
-        }
-
-        let prediction_key = DataKey::Prediction(market_id, prediction.predictor.clone());
-        let mut stored_prediction: Prediction = env
+        let prediction_key = DataKey::Prediction(market_id, address.clone());
+        // Claimed predictions live in temporary storage; loading from both
+        // stores lets the payout_claimed flag skip them (and any duplicate
+        // list entry) instead of aborting the batch. A missing record is
+        // skipped rather than treated as fatal.
+        let stored: Option<Prediction> = env
             .storage()
             .persistent()
             .get(&prediction_key)
-            .ok_or(InsightArenaError::PredictionNotFound)?;
+            .or_else(|| env.storage().temporary().get(&prediction_key));
+        let mut stored_prediction = match stored {
+            Some(prediction) => prediction,
+            None => continue,
+        };
 
-        if stored_prediction.payout_claimed {
+        if stored_prediction.chosen_outcome != resolved_outcome || stored_prediction.payout_claimed
+        {
             continue;
         }
 
