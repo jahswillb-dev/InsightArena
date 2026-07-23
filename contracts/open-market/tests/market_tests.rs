@@ -969,6 +969,184 @@ fn cancel_market_refunds_exact_stake_amounts() {
     ));
 }
 
+// ── cancel_market multi-predictor refund flow (#1265) ────────────────────────
+//
+// Unlike the storage-injection tests above, these run the full end-to-end
+// flow: predictors are funded, stake real tokens through submit_prediction,
+// and are refunded by cancel_market. Refunds in this contract are push-based —
+// cancel_market transfers every stake back in the same call, so "claiming a
+// refund" is the cancellation itself and the double-claim / non-participant
+// requirements are pinned against every post-cancellation extraction path
+// (second cancel, resolve-after-cancel, claim_payout, batch payouts).
+
+/// Five distinct stakes within default_params' min/max bounds (10M..=100M).
+const FLOW_STAKES: [i128; 5] = [12_000_000, 25_000_000, 40_000_000, 60_000_000, 100_000_000];
+/// Extra dust funded on top of each stake so a refund that merely pays back
+/// the stake amount (rather than restoring the exact balance) is caught.
+const FLOW_HEADROOM: i128 = 5_000_000;
+
+/// Create a market and stake `FLOW_STAKES` from 5 fresh predictors across both
+/// outcomes (indices 0,2,4 on "yes"; 1,3 on "no"). Returns
+/// (market_id, predictors, pre-stake balances).
+fn setup_five_predictor_market(
+    env: &Env,
+    client: &InsightArenaContractClient<'_>,
+    xlm_token: &Address,
+) -> (u64, [Address; 5], [i128; 5]) {
+    let creator = Address::generate(env);
+    let id = client.create_market(&creator, &default_params(env));
+
+    let predictors = [
+        Address::generate(env),
+        Address::generate(env),
+        Address::generate(env),
+        Address::generate(env),
+        Address::generate(env),
+    ];
+
+    let asset = StellarAssetClient::new(env, xlm_token);
+    let token = TokenClient::new(env, xlm_token);
+    let mut balances_before = [0_i128; 5];
+
+    for (i, predictor) in predictors.iter().enumerate() {
+        asset.mint(predictor, &(FLOW_STAKES[i] + FLOW_HEADROOM));
+        balances_before[i] = token.balance(predictor);
+
+        let outcome = if i % 2 == 0 {
+            symbol_short!("yes")
+        } else {
+            symbol_short!("no")
+        };
+        client.submit_prediction(predictor, &id, &outcome, &FLOW_STAKES[i]);
+    }
+
+    (id, predictors, balances_before)
+}
+
+/// Requirements 1–4 & 7: five predictors with five different stakes across
+/// both outcomes are each made exactly whole by cancellation, and the contract
+/// retains zero tokens from the cancelled market.
+#[test]
+fn cancel_market_five_predictors_restores_exact_pre_stake_balances() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _oracle, xlm_token) = deploy_with_token(&env);
+    let token = TokenClient::new(&env, &xlm_token);
+
+    // Contract balance before the market opens (fresh deploy: zero).
+    let contract_before = token.balance(&client.address);
+
+    let (id, predictors, balances_before) =
+        setup_five_predictor_market(&env, &client, &xlm_token);
+
+    // Every stake is escrowed, and each predictor is down exactly their stake.
+    let total_staked: i128 = FLOW_STAKES.iter().sum();
+    assert_eq!(token.balance(&client.address), contract_before + total_staked);
+    for (i, predictor) in predictors.iter().enumerate() {
+        assert_eq!(token.balance(predictor), balances_before[i] - FLOW_STAKES[i]);
+    }
+
+    client.cancel_market(&admin, &id);
+    assert!(client.get_market(&id).is_cancelled);
+
+    // Every predictor's balance is restored exactly, regardless of stake size
+    // or which outcome they chose.
+    for (i, predictor) in predictors.iter().enumerate() {
+        assert_eq!(token.balance(predictor), balances_before[i]);
+    }
+
+    // The contract holds exactly what it held before the market opened —
+    // no dust locked, no over-refund.
+    assert_eq!(token.balance(&client.address), contract_before);
+}
+
+/// Requirement 5 & acceptance: a second refund for the same predictor is
+/// impossible. Refunds are pushed by cancel_market, so every path that could
+/// pay a second time is asserted closed: cancelling again, resolving the
+/// cancelled market (which would reopen claim_payout), claiming a payout
+/// directly, and batch-distributing payouts.
+#[test]
+fn cancel_market_second_refund_is_impossible_via_any_path() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, oracle, xlm_token) = deploy_with_token(&env);
+    let token = TokenClient::new(&env, &xlm_token);
+
+    let (id, predictors, balances_before) =
+        setup_five_predictor_market(&env, &client, &xlm_token);
+
+    client.cancel_market(&admin, &id);
+
+    // Path 1: cancelling again is rejected.
+    let second_cancel = client.try_cancel_market(&admin, &id);
+    assert!(matches!(
+        second_cancel,
+        Err(Ok(InsightArenaError::MarketAlreadyCancelled))
+    ));
+
+    // Path 2: the oracle cannot resolve a cancelled market, so the payout
+    // path can never open after refunds were issued.
+    let resolution_time = default_params(&env).resolution_time;
+    env.ledger().with_mut(|li| li.timestamp = resolution_time + 1);
+    let resolve_after_cancel = client.try_resolve_market(&oracle, &id, &symbol_short!("yes"));
+    assert!(matches!(
+        resolve_after_cancel,
+        Err(Ok(InsightArenaError::MarketAlreadyCancelled))
+    ));
+
+    // Path 3: direct payout claims fail while the market is unresolved.
+    for predictor in predictors.iter() {
+        let claim = client.try_claim_payout(predictor, &id);
+        assert!(matches!(
+            claim,
+            Err(Ok(InsightArenaError::MarketNotResolved))
+        ));
+    }
+
+    // Path 4: batch payout distribution also refuses the cancelled market.
+    let batch = client.try_batch_distribute_payouts(&admin, &id);
+    assert!(matches!(
+        batch,
+        Err(Ok(InsightArenaError::MarketNotResolved))
+    ));
+
+    // After all rejected attempts, balances are exactly the refunded ones and
+    // the contract kept nothing.
+    for (i, predictor) in predictors.iter().enumerate() {
+        assert_eq!(token.balance(predictor), balances_before[i]);
+    }
+    assert_eq!(token.balance(&client.address), 0);
+}
+
+/// Requirement 6: an address that never predicted receives nothing from the
+/// cancellation and cannot extract anything afterwards.
+#[test]
+fn cancel_market_non_participant_receives_nothing() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _oracle, xlm_token) = deploy_with_token(&env);
+    let token = TokenClient::new(&env, &xlm_token);
+
+    let (id, _predictors, _balances_before) =
+        setup_five_predictor_market(&env, &client, &xlm_token);
+
+    let outsider = Address::generate(&env);
+    assert_eq!(token.balance(&outsider), 0);
+
+    client.cancel_market(&admin, &id);
+
+    // The cancellation refunded only the five predictors.
+    assert_eq!(token.balance(&outsider), 0);
+    assert_eq!(token.balance(&client.address), 0);
+
+    // And the outsider has no post-cancellation claim path.
+    let claim = client.try_claim_payout(&outsider, &id);
+    assert!(matches!(
+        claim,
+        Err(Ok(InsightArenaError::MarketNotResolved))
+    ));
+}
+
 #[test]
 fn extend_market_end_time_success() {
     let env = Env::default();

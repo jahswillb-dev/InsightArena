@@ -667,7 +667,10 @@ pub fn cancel_market(env: &Env, caller: Address, market_id: u64) -> Result<(), I
 /// 3. Market must exist in persistent storage.
 /// 4. `current_time >= market.resolution_time` — resolution window must be open.
 /// 5. `market.is_resolved == false` — prevents double-resolution.
-/// 6. `resolved_outcome` must be one of the symbols in `market.outcome_options`.
+/// 6. `market.is_cancelled == false` — a cancelled market already refunded all
+///    stakes, so resolving it would reopen the payout path and let predictors
+///    extract funds a second time.
+/// 7. `resolved_outcome` must be one of the symbols in `market.outcome_options`.
 pub fn resolve_market(
     env: Env,
     oracle: Address,
@@ -690,6 +693,13 @@ pub fn resolve_market(
 
     if market.is_resolved {
         return Err(InsightArenaError::MarketAlreadyResolved);
+    }
+
+    // A cancelled market has already refunded every stake; resolving it would
+    // reopen claim_payout / batch_distribute_payouts and allow refunded
+    // predictors to extract funds a second time.
+    if market.is_cancelled {
+        return Err(InsightArenaError::MarketAlreadyCancelled);
     }
 
     if !market.outcome_options.contains(resolved_outcome.clone()) {
