@@ -70,6 +70,10 @@ pub enum DataKey {
     SwapHistory(u64),
     /// Keyed by market_id. Stores rolling 24h pool volume.
     PoolVolume(u64),
+    /// Keyed by market_id. Stores the rolling volatility measure used to derive the dynamic swap fee tier.
+    VolatilityState(u64),
+    /// Singleton. Admin-configurable thresholds and fee rates for the volatility-tiered swap fee schedule.
+    FeeTierConfig,
 
     // Conditional Market keys
     ConditionalMarket(u64),   // market_id -> ConditionalMarket
@@ -385,6 +389,94 @@ impl SwapRecord {
             timestamp,
         }
     }
+}
+
+// ── Dynamic Fee / Volatility Types ────────────────────────────────────────────
+
+/// Rolling record of recent price movement for a single market's AMM pool.
+/// Updated on every swap; used to derive the current [`FeeTier`].
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct VolatilityState {
+    pub market_id: u64,
+    /// Exponentially-weighted moving average of recent per-swap price moves,
+    /// expressed in bps of the traded pair's reserve ratio (0-10000).
+    pub ema_bps: u32,
+    /// The traded-pair reserve ratio (in bps) observed after the most recent swap.
+    /// Used as the reference point to measure the next swap's price delta.
+    pub last_price_bps: u32,
+    /// Ledger timestamp of the most recent update.
+    pub last_updated: u64,
+    /// Total number of swaps that have contributed to this rolling measure.
+    /// Zero means no swap has occurred yet, so `ema_bps`/`last_price_bps` are not yet meaningful.
+    pub sample_count: u32,
+}
+
+impl VolatilityState {
+    pub fn empty(market_id: u64) -> Self {
+        Self {
+            market_id,
+            ema_bps: 0,
+            last_price_bps: 0,
+            last_updated: 0,
+            sample_count: 0,
+        }
+    }
+}
+
+/// The current dynamic-fee tier for a market, derived from its rolling volatility measure.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum FeeTier {
+    Calm,
+    Normal,
+    Volatile,
+}
+
+/// Admin-configurable thresholds and per-tier fee rates driving the dynamic swap fee,
+/// plus the split of every collected fee between liquidity providers and the protocol treasury.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FeeTierConfig {
+    /// Inclusive upper bound (bps) of rolling volatility for the "calm" tier.
+    pub calm_threshold_bps: u32,
+    /// Inclusive upper bound (bps) of rolling volatility for the "normal" tier.
+    /// Anything above this threshold is classified "volatile". Must be strictly
+    /// greater than `calm_threshold_bps`.
+    pub volatile_threshold_bps: u32,
+    /// Swap fee (bps) applied while in the "calm" tier.
+    pub calm_fee_bps: u32,
+    /// Swap fee (bps) applied while in the "normal" tier.
+    pub normal_fee_bps: u32,
+    /// Swap fee (bps) applied while in the "volatile" tier.
+    pub volatile_fee_bps: u32,
+    /// Share of every collected swap fee routed to the protocol treasury, in bps
+    /// of the fee itself (0-10000). The remainder is credited to liquidity providers.
+    pub protocol_share_bps: u32,
+}
+
+impl FeeTierConfig {
+    /// Sensible defaults used whenever no admin-configured schedule has been stored yet.
+    pub fn default_config() -> Self {
+        Self {
+            calm_threshold_bps: 50,
+            volatile_threshold_bps: 200,
+            calm_fee_bps: 15,
+            normal_fee_bps: 30,
+            volatile_fee_bps: 100,
+            protocol_share_bps: 2000,
+        }
+    }
+}
+
+/// Read-only view of a market's current dynamic fee state, returned by `get_market_fee_info`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MarketFeeInfo {
+    pub market_id: u64,
+    pub tier: FeeTier,
+    pub effective_fee_bps: u32,
+    pub volatility_ema_bps: u32,
 }
 
 #[contracttype]

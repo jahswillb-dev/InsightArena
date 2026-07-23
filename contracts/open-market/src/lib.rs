@@ -26,9 +26,9 @@ pub use crate::liquidity::{calculate_liquidity_value, calculate_lp_tokens, calcu
 pub use crate::market::CreateMarketParams;
 pub use crate::storage_types::{
     ConditionalChain, ConditionalMarket, CreatorLeaderboardEntry, CreatorStats, DataKey, Dispute,
-    Event, EventMatch, EventPrediction, InviteCode, LPPosition, LeaderboardEntry,
-    LeaderboardSnapshot, LiquidityPool, Market, MarketStats, PlatformStats, Prediction, Season,
-    SwapRecord, UserProfile, Winner,
+    Event, EventMatch, EventPrediction, FeeTier, FeeTierConfig, InviteCode, LPPosition,
+    LeaderboardEntry, LeaderboardSnapshot, LiquidityPool, Market, MarketFeeInfo, MarketStats,
+    PlatformStats, Prediction, Season, SwapRecord, UserProfile, VolatilityState, Winner,
 };
 
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec};
@@ -653,5 +653,29 @@ impl InsightArenaContract {
         market_id: u64,
     ) -> Result<i128, InsightArenaError> {
         liquidity::collect_lp_fees(&env, provider, market_id)
+    }
+
+    // ── Dynamic Swap Fee ──────────────────────────────────────────────────────
+
+    /// Return the current dynamic fee tier and effective swap fee for a market.
+    pub fn get_market_fee_info(
+        env: Env,
+        market_id: u64,
+    ) -> Result<crate::storage_types::MarketFeeInfo, InsightArenaError> {
+        liquidity::get_market_fee_info(&env, market_id)
+    }
+
+    /// Return the current admin-configured volatility fee tier schedule.
+    pub fn get_fee_tier_config(env: Env) -> crate::storage_types::FeeTierConfig {
+        liquidity::get_fee_tier_config(&env)
+    }
+
+    /// Update the volatility fee tier schedule. Caller must be the platform admin.
+    pub fn update_fee_tier_config(
+        env: Env,
+        admin: Address,
+        new_config: crate::storage_types::FeeTierConfig,
+    ) -> Result<(), InsightArenaError> {
+        liquidity::set_fee_tier_config(&env, admin, new_config)
     }
 }
